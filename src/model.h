@@ -440,6 +440,7 @@ private:
       //  }
         
       double ret = 0;
+
         
         
         for (size_t j = 0; j < c; j++)
@@ -477,17 +478,20 @@ public:
     // Should these pointers live in model subclass or state subclass?
     std::vector<size_t> *y_size_t; // a y vector indicating response categories in 0,1,2,...,c-1
     std::vector<double> *phi; // latent variables for mnl
+    std::vector<double> delta_cand; // candidate of delta values
 
-    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi) : Model(num_classes, 2*num_classes)
+    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand) : Model(num_classes, 2*num_classes)
     {
-      this->y_size_t = y_size_t;
-      this->phi = phi;
+        this->y_size_t = y_size_t;
+        this->phi = phi;
         this->tau_a = tau_a;
         this->tau_b = tau_b;
         this->alpha = alpha;
         this->beta = beta;
         //what should this be?
         this->dim_residual = num_classes;
+        this->delta_cand = delta_cand;
+
     }
 
     LogitModel() : Model(2, 4) {}
