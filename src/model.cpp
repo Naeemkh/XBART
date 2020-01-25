@@ -277,12 +277,34 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     return;
 }
 
-void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct)
+void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, std::vector<std::vector<double>> delta_loglike)
 {
-    // Draw Sigma
-    // state->residual_std_full = state->residual_std - state->predictions_std[tree_ind];
+    // Draw Delta
+    size_t K =  temp_delta_loglike.size();
+    std::vector<double> delta_likelihood(K);
 
-    // residual_std is only 1 dimensional for regression model
+    // get next tree ind
+    size_t num_trees = delta_loglike.size();
+    size_t next_tree;
+    if (tree_ind == num_trees-1)
+    {
+        next_tree = 0;
+    }
+    else
+    {
+        next_tree = tree_ind + 1;
+    }
+    
+
+    for (size_t i = 0; i < K; i++)
+    {
+        temp_delta_loglike[i] += delta_loglike[tree_ind][i];
+        delta_likelihood[i] = exp(temp_delta_loglike[i]);
+        temp_delta_loglike[i] -= delta_loglike[next_tree][i];
+        
+    }
+    std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
+    state->update_sigma(delta_cand[d(state->gen)]);
 
     /*
     std::vector<double> full_residual(state->n_y);
@@ -319,6 +341,8 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
         // std::cout << "sum fit "<<sum_fits<< std::endl;
         //COUT << "draw phi complete";
     }
+
+
 
     return;
 }

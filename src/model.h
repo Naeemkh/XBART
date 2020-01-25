@@ -479,6 +479,7 @@ public:
     std::vector<size_t> *y_size_t; // a y vector indicating response categories in 0,1,2,...,c-1
     std::vector<double> *phi; // latent variables for mnl
     std::vector<double> delta_cand; // candidate of delta values
+    std::vector<double> temp_delta_loglike;
 
     LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand) : Model(num_classes, 2*num_classes)
     {
@@ -491,7 +492,8 @@ public:
         //what should this be?
         this->dim_residual = num_classes;
         this->delta_cand = delta_cand;
-
+        this->temp_delta_loglike.resize(delta_cand.size());
+        std::fill(this->temp_delta_loglike.begin(), this->temp_delta_loglike.end(), 0.0);
     }
 
     LogitModel() : Model(2, 4) {}
@@ -502,7 +504,7 @@ public:
 
     void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf);
 
-    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct);
+    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, std::vector< std::vector<double> > delta_loglike);
 
     void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
 

@@ -508,6 +508,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     // (y_size_t definitely belongs there, phi probably does)
 
     std::vector<double> initial_theta(num_class, 1);
+    std::vector<double> initial_delta_loglike(delta_std.size(), 0.0);
     std::unique_ptr<State> state(new State(Xpointer, Xorder_std, N, p, num_trees, p_categorical, p_continuous, set_random_seed, random_seed, n_min, num_cutpoints, parallel, mtry, Xpointer, num_sweeps, sample_weights_flag, &y_std, 1.0, max_depth, y_mean, burnin, model->dim_residual));
     
     // initialize X_struct
@@ -515,9 +516,13 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
 
     std::vector< std::vector<double> > phi_samples;
     ini_matrix(phi_samples, N, num_sweeps * num_trees);
+
+    // initialize delta_likelihood
+    std::vector< std::vector<double> > delta_loglike;
+    ini_matrix(delta_loglike, delta_std.size(), num_trees);
     
     ////////////////////////////////////////////////////////////////
-    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples);
+    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples, delta_draw_xinfo, delta_loglike);
 
     // TODO: Implement predict OOS
 
