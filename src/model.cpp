@@ -277,31 +277,16 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     return;
 }
 
-void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, std::vector<std::vector<double>> delta_loglike)
+void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike)
 {
     // Draw Delta
     size_t K =  temp_delta_loglike.size();
     std::vector<double> delta_likelihood(K);
 
-    // get next tree ind
-    size_t num_trees = delta_loglike.size();
-    size_t next_tree;
-    if (tree_ind == num_trees-1)
-    {
-        next_tree = 0;
-    }
-    else
-    {
-        next_tree = tree_ind + 1;
-    }
-    
-
     for (size_t i = 0; i < K; i++)
     {
         temp_delta_loglike[i] += delta_loglike[tree_ind][i];
         delta_likelihood[i] = exp(temp_delta_loglike[i]);
-        temp_delta_loglike[i] -= delta_loglike[next_tree][i];
-        
     }
     std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
     state->update_sigma(delta_cand[d(state->gen)]);
@@ -405,7 +390,7 @@ void LogitModel::calculateOtherSideSuffStat(std::vector<double> &parent_suff_sta
     return;
 }
 
-void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct) const
+void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike)
 {
 
     size_t next_index = tree_ind + 1;
@@ -426,6 +411,13 @@ void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual
         {
             residual_std[j][i] = residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j] / (*(x_struct->data_pointers[next_index][i]))[j];
         }
+    }
+
+    // update temp_delta_loglike for next tree
+    size_t K = temp_delta_loglike.size();
+    for (size_t i = 0; i < K; i++)
+    {
+        temp_delta_loglike[i] = temp_delta_loglike[i] - delta_loglike[next_index][i];
     }
 
     return;
@@ -480,7 +472,7 @@ double LogitModel::likelihood(std::vector<double> &temp_suff_stat, std::vector<d
 
     //return - 0.5 * nb * log(2 * 3.141592653) -  0.5 * nb * log(sigma2) + 0.5 * log(sigma2) - 0.5 * log(nbtau + sigma2) - 0.5 * y_squared_sum / sigma2 + 0.5 * tau * pow(y_sum, 2) / (sigma2 * (nbtau + sigma2));
 
-    return (LogitLIL(local_suff_stat));
+    return (LogitLIL(local_suff_stat, state->sigma));
 }
 
 /*

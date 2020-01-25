@@ -426,7 +426,7 @@ private:
     //size_t dim_suffstat = 0; // = 2*dim_theta;
     //std::vector<double> suff_stat_total;
 
-    double LogitLIL(const vector<double> &suffstats) const
+    double LogitLIL(const vector<double> &suffstats, double delta) const
     {
 
         size_t c = suffstats.size() / 2;
@@ -440,7 +440,7 @@ private:
       //  }
         
       double ret = 0;
-
+      double ret2 = 0;
         
         
         for (size_t j = 0; j < c; j++)
@@ -449,8 +449,9 @@ private:
             // double s = suffstats[c + j];
             // ret += -(tau_a + suffstats[j]) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]) ;
             ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
+            ret2 += pow(concn + suffstats[c + j], concn * (1-delta)) * tgamma(concn * delta + suffstats[j]) / tgamma(concn + suffstats[j]);
         }
-        return ret;
+        return ret + log(ret2);
     }
 
     // void LogitSamplePars(vector<double> &suffstats, double &tau_a, double &tau_b, std::mt19937 &generator, std::vector<double> &theta_vector)
@@ -473,7 +474,7 @@ public:
  //   size_t dim_suffstat = 3;
 
     // prior on leaf parameter
-    double tau_a, tau_b; //leaf parameter is ~ G(tau_a, tau_b). tau_a = 1/tau + 1/2, tau_b = 1/tau -> f(x)\sim N(0,tau) approx
+    double tau_a, tau_b, concn; //leaf parameter is ~ G(tau_a, tau_b). tau_a = 1/tau + 1/2, tau_b = 1/tau -> f(x)\sim N(0,tau) approx
 
     // Should these pointers live in model subclass or state subclass?
     std::vector<size_t> *y_size_t; // a y vector indicating response categories in 0,1,2,...,c-1
@@ -481,7 +482,7 @@ public:
     std::vector<double> delta_cand; // candidate of delta values
     std::vector<double> temp_delta_loglike;
 
-    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand) : Model(num_classes, 2*num_classes)
+    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand, double concn) : Model(num_classes, 2*num_classes)
     {
         this->y_size_t = y_size_t;
         this->phi = phi;
@@ -491,6 +492,7 @@ public:
         this->beta = beta;
         //what should this be?
         this->dim_residual = num_classes;
+        this->concn = concn;
         this->delta_cand = delta_cand;
         this->temp_delta_loglike.resize(delta_cand.size());
         std::fill(this->temp_delta_loglike.begin(), this->temp_delta_loglike.end(), 0.0);
@@ -504,7 +506,7 @@ public:
 
     void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf);
 
-    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, std::vector< std::vector<double> > delta_loglike);
+    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike);
 
     void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
 
@@ -512,7 +514,7 @@ public:
 
     void calculateOtherSideSuffStat(std::vector<double> &parent_suff_stat, std::vector<double> &lchild_suff_stat, std::vector<double> &rchild_suff_stat, size_t &N_parent, size_t &N_left, size_t &N_right, bool &compute_left_side);
 
-    void state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct) const;
+    void state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike);
 
     double likelihood(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split, std::unique_ptr<State> &state) const;
 
