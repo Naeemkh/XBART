@@ -269,10 +269,29 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
         // theta_vector[j] = gammadist(state->gen) / (tau_b + s);
 
-        std::gamma_distribution<double> gammadist(tau_a + suff_stat[j], 1.0);
+        std::gamma_distribution<double> gammadist(concn + suff_stat[j], 1.0);
 
-        theta_vector[j] = gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]);
+        theta_vector[j] = gammadist(state->gen) / (concn + suff_stat[dim_theta + j]);
     }
+
+    // get weight 
+    std::vector<double> weight(dim_theta, 0.0);
+    double weight_sum;
+    for (size_t j = 0; j < dim_theta; j++)
+    {
+        weight[j] = pow(concn + suff_stat[dim_theta + j], concn * (1 - state->sigma)) * tgamma(concn * state->sigma + suff_stat[j]) / tgamma(concn + suff_stat[j]);
+    }
+    // standardize weight
+    vec_sum(weight, weight_sum);
+    weight = weight / weight_sum;
+    // draw category
+    std::discrete_distribution<> d(weight.begin(), weight.end());
+    size_t J = d(state->gen);
+
+    // re-draw lambda for category J
+    std::gamma_distribution<double> gammadist(concn * state->sigma + suff_stat[J], 1.0); // ~Gamma(c*delta + r, c + s);
+
+    theta_vector[J] = gammadist(state->gen) / (concn + suff_stat[dim_theta + J]);
 
     return;
 }
