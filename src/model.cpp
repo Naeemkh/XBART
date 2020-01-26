@@ -305,7 +305,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     size_t B = bv.size();
     double ret = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
-    cout << "ret2 " << ret2 << endl; 
+    
     for (size_t i = 0; i < K; i++)
     {   
         delta_loglike[tree_ind][i] = 0;
@@ -342,7 +342,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
     state->update_sigma(delta_cand[d(state->gen)]);
     // std::cout << "delta likeihood " << delta_likelihood << endl;
-    std::cout << "delta " << state->sigma << endl;
+    // std::cout << "delta " << state->sigma << endl;
 
     /*
     std::vector<double> full_residual(state->n_y);

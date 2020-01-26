@@ -1,4 +1,4 @@
-XBART.multinomial <- function(y, num_class, X, Xtest, num_trees, num_sweeps, max_depth = 250, Nmin = 1, num_cutpoints = 100, alpha = 0.95, beta = 1.25, tau = NULL, no_split_penality = NULL, delta = c(100, 500, 1000), concn = 0.2, burnin = 1L, mtry = NULL, p_categorical = 0L, kap = 16, s = 4, verbose = FALSE, parallel = TRUE, random_seed = NULL, sample_weights_flag = TRUE, ...) {
+XBART.multinomial <- function(y, num_class, X, Xtest, num_trees, num_sweeps, max_depth = 250, Nmin = 1, num_cutpoints = 100, alpha = 0.95, beta = 1.25, tau = NULL, no_split_penality = NULL, delta = c(0.5, 1, 5, 10), concn = 0.2, burnin = 1L, mtry = NULL, p_categorical = 0L, kap = 16, s = 4, verbose = FALSE, parallel = TRUE, random_seed = NULL, sample_weights_flag = TRUE, ...) {
 
   if (class(X) != "matrix") {
     cat("Input X is not a matrix, try to convert type.\n")
