@@ -276,14 +276,10 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
     // get weight 
     std::vector<double> weight(dim_theta, 0.0);
-    double weight_sum;
     for (size_t j = 0; j < dim_theta; j++)
     {
         weight[j] = pow(concn + suff_stat[dim_theta + j], concn * (1 - state->sigma)) * tgamma(concn * state->sigma + suff_stat[j]) / tgamma(concn + suff_stat[j]);
     }
-    // standardize weight
-    vec_sum(weight, weight_sum);
-    weight = weight / weight_sum;
     // draw category
     std::discrete_distribution<> d(weight.begin(), weight.end());
     size_t J = d(state->gen);
@@ -296,11 +292,36 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     return;
 }
 
-void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike)
+void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike, tree tree)
 {
+    // Update delta_loglike for current trees
+    size_t K = delta_cand.size();
+    tree::npv bv;
+    std::vector<double> theta_vector;
+    tree.getbots(bv);
+    size_t B = bv.size();
+    double ret = 0;
+    double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual) - lgamma(concn * state->sigma));
+    for (size_t i = 0; i < K; i++)
+    {   
+        delta_loglike[tree_ind][i] = 0;
+        for(size_t j = 0; j < B; j++)
+        {
+            theta_vector = bv[i]->gettheta_vector();
+            ret = 0;
+            for(size_t k = 0; k < dim_residual; k++)
+            {
+                delta_loglike[tree_ind][i] += (concn - 1) * log(theta_vector[k]) - concn * theta_vector[k];
+                ret += pow(concn * theta_vector[k], concn * (state->sigma - 1));
+            }
+            delta_loglike[tree_ind][i] += log(ret);
+        }
+        delta_loglike[tree_ind][i] += ret2;
+    }
+
     // Draw Delta
-    size_t K =  temp_delta_loglike.size();
-    std::vector<double> delta_likelihood(K);
+    
+    std::vector<double> delta_likelihood(K, 0.0);
 
     for (size_t i = 0; i < K; i++)
     {

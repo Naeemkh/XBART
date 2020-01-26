@@ -224,7 +224,7 @@ void mcmc_loop_multinomial(matrix<size_t> &Xorder_std, bool verbose,
             state->update_split_counts(tree_ind);
 
             // update partial fits and delta for the next tree
-            model->update_state(state, tree_ind, x_struct, delta_loglike);
+            model->update_state(state, tree_ind, x_struct, delta_loglike, trees[sweeps][tree_ind]);
 
             delta_draw_xinfo[sweeps][tree_ind] = state->sigma;
       
