@@ -449,8 +449,9 @@ private:
             // double s = suffstats[c + j];
             // ret += -(tau_a + suffstats[j]) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]) ;
             ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
-            ret2 += pow(concn + suffstats[c + j], concn * (1-delta)) * tgamma(concn * delta + suffstats[j]) / tgamma(concn + suffstats[j]);
+            ret2 += exp(concn * (1-delta) * log(concn + suffstats[c + j]) + lgamma(concn * delta + suffstats[j]) - lgamma(concn + suffstats[j]));
         }
+        // cout << "loglike " << ret + log(ret2) << endl;
         return ret + log(ret2);
     }
 

@@ -1177,6 +1177,7 @@ void BART_likelihood_all(matrix<size_t> &Xorder_std, bool &no_split, size_t &spl
             split_var = split_var + state->p_continuous;
         }
     }
+    // std::cout << "loglike " << loglike << endl;
 
     return;
 }

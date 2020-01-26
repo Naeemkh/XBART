@@ -278,14 +278,17 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     std::vector<double> weight(dim_theta, 0.0);
     for (size_t j = 0; j < dim_theta; j++)
     {
-        weight[j] = pow(concn + suff_stat[dim_theta + j], concn * (1 - state->sigma)) * tgamma(concn * state->sigma + suff_stat[j]) / tgamma(concn + suff_stat[j]);
+        weight[j] = exp( concn * (1 - state->sigma) * log(concn + suff_stat[dim_theta + j])  + lgamma(concn * state->sigma + suff_stat[j]) - lgamma(concn + suff_stat[j]));
     }
     // draw category
+    // std::cout << "weight " << weight << endl;
     std::discrete_distribution<> d(weight.begin(), weight.end());
     size_t J = d(state->gen);
+    // std::cout << "favor category " << J << endl;
 
     // re-draw lambda for category J
     std::gamma_distribution<double> gammadist(concn * state->sigma + suff_stat[J], 1.0); // ~Gamma(c*delta + r, c + s);
+    // std::cout << "c*delta " << concn * state->sigma << " suff_stat " << suff_stat[J] << endl;
 
     theta_vector[J] = gammadist(state->gen) / (concn + suff_stat[dim_theta + J]);
 
@@ -301,8 +304,8 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     tree.getbots(bv);
     size_t B = bv.size();
     double ret = 0;
-    double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual) - lgamma(concn * state->sigma));
-
+    double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
+    cout << "ret2 " << ret2 << endl; 
     for (size_t i = 0; i < K; i++)
     {   
         delta_loglike[tree_ind][i] = 0;
@@ -313,24 +316,33 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
             for(size_t k = 0; k < dim_residual; k++)
             {
                 delta_loglike[tree_ind][i] += (concn - 1) * log(theta_vector[k]) - concn * theta_vector[k];
-                ret += pow(concn * theta_vector[k], concn * (state->sigma - 1));
+                ret += pow(concn * theta_vector[k], concn * (delta_cand[i] - 1));
             }
             delta_loglike[tree_ind][i] += log(ret);
         }
         delta_loglike[tree_ind][i] += ret2;
+        delta_loglike[tree_ind][i] += - B * lgamma(concn * delta_cand[i]);
     }
+    // std::cout << "delta_loglike " << delta_loglike[tree_ind] << endl;
 
     // Draw Delta
     
     std::vector<double> delta_likelihood(K, 0.0);
 
+    double loglike_max = -INFINITY;
     for (size_t i = 0; i < K; i++)
     {
         temp_delta_loglike[i] += delta_loglike[tree_ind][i];
-        delta_likelihood[i] = exp(temp_delta_loglike[i]);
+        if (temp_delta_loglike[i] > loglike_max){ loglike_max = temp_delta_loglike[i]; }
+    }
+    for (size_t i = 0; i < K; i++)
+    {
+        delta_likelihood[i] = exp(temp_delta_loglike[i] - loglike_max);
     }
     std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
     state->update_sigma(delta_cand[d(state->gen)]);
+    // std::cout << "delta likeihood " << delta_likelihood << endl;
+    std::cout << "delta " << state->sigma << endl;
 
     /*
     std::vector<double> full_residual(state->n_y);
