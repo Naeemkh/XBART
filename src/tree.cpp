@@ -609,6 +609,7 @@ void tree::grow_from_root(std::unique_ptr<State> &state, matrix<size_t> &Xorder_
         if (update_theta)
         {
             model->samplePars(state, this->suff_stat, this->theta_vector, this->prob_leaf);
+            std::cout << "theta " << this->theta_vector << endl;
         }
 
         this->l = 0;
