@@ -302,12 +302,13 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     size_t B = bv.size();
     double ret = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual) - lgamma(concn * state->sigma));
+
     for (size_t i = 0; i < K; i++)
     {   
         delta_loglike[tree_ind][i] = 0;
         for(size_t j = 0; j < B; j++)
         {
-            theta_vector = bv[i]->gettheta_vector();
+            theta_vector = bv[j]->gettheta_vector();
             ret = 0;
             for(size_t k = 0; k < dim_residual; k++)
             {

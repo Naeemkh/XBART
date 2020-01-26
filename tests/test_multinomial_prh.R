@@ -149,7 +149,7 @@ pred = apply(a,1,which.max)-1
 # #sum(pred2 == y_test)
 # #print(mean(pred3 == y_test))
 
-# cat(paste("xbart rmse on probabilities: ", round(sqrt(mean((a-pr)^2)),3)),"\n")
+cat(paste("xbart rmse on probabilities: ", round(sqrt(mean((a-pr)^2)),3)),"\n")
 # cat(paste("ranger rmse on probabilities: ", round(sqrt(mean((pred3-pr)^2)),3)),"\n")
 # cat(paste("xgboost rmse on probabilities: ", round(sqrt(mean((phat.xgb-pr)^2)),3)),"\n")
 
@@ -165,8 +165,8 @@ pred = apply(a,1,which.max)-1
 
 
 
-# yhat = apply(a,1,which.max)-1
+yhat = apply(a,1,which.max)-1
 # yhat.rf = apply(pred3,1,which.max)-1
-# cat(paste("xbart classification accuracy: ",round(mean(y_test == yhat),3)),"\n")
+cat(paste("xbart classification accuracy: ",round(mean(y_test == yhat),3)),"\n")
 # cat(paste("ranger classification accuracy: ", round(mean(y_test == yhat.rf),3)),"\n")
 # cat(paste("xgboost classification accuracy: ", round(mean(yhat.xgb == y_test),3)),"\n")
