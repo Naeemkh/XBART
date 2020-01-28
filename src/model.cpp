@@ -303,6 +303,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     std::vector<double> theta_vector;
     tree.getbots(bv);
     size_t B = bv.size();
+    std::cout << "tree " << tree_ind << ": number of leaves: " << B << endl;
     double ret = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
     
