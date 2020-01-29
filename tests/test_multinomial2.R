@@ -81,8 +81,8 @@ fit = XBART.multinomial(y=y_train, num_class=3, X=X_train, Xtest=X_test,
             num_trees=num_trees, num_sweeps=num_sweeps, max_depth=250, 
             Nmin=1, num_cutpoints=100, alpha=0.95, beta=2.0, tau=8/num_trees, 
             no_split_penality = "Auto", burnin = 1L, mtry = p, p_categorical = 0L, 
-            kap = 1, s = 1, verbose = TRUE, parallel = FALSE, set_random_seed = FALSE, 
-            random_seed = seed, sample_weights_flag = TRUE) 
+            kap = 1, s = 1, verbose = FALSE, parallel = FALSE, set_random_seed = FALSE, 
+            random_seed = seed, sample_weights_flag = TRUE, delta = c(1), concn = 1) 
 ​
 # number of sweeps * number of observations * number of classes
 # dim(fit$yhats_test)
@@ -108,23 +108,66 @@ pred = apply(a, 1, which.max) - 1
 # Compare with ranger
 data = data.frame( y = y_train, X = X_train)
 data.test = data.frame(X = X_test)
-​
-fit3 = ranger(as.factor(y) ~ ., data = data)
-​
-pred3 = predict(fit3, data.test)
-​
+tm = proc.time()
+fit3 = ranger(as.factor(y) ~ ., data = data,probability=TRUE, num.trees = 1000)
 
 
 
-​
-plotROC(pred3$predictions,y_test)
-plotROC(a[,2],y_test,add=TRUE,col='orange')
-​
-pred3 = as.numeric(pred3$predictions) - 1
-​
-​
-​
+pred3 = predict(fit3, data.test)$predictions
+tm = proc.time()-tm
+cat(paste("ranger runtime: ", round(tm["elapsed"],3)," seconds","\n"))
+
+
+tm = proc.time()
+fit.xgb <- xgboost(data = X_train,label=y_train,
+                   num_class=3,
+                   verbose = 0,
+                   max_depth = 4,
+                   subsample = 0.80,
+                   nrounds=500,
+                   early_stopping_rounds = 2,
+                   eta = 0.1,
+                   params=list(objective="multi:softprob"))
+
+tm = proc.time()-tm
+cat(paste("xgboost runtime: ", round(tm["elapsed"],3)," seconds"),"\n")
+phat.xgb <- predict(fit.xgb, X_test)
+phat.xgb <- matrix(phat.xgb, ncol=k, byrow=TRUE)
+
+yhat.xgb <- max.col(phat.xgb) - 1
+
+
+
+#plotROC(pred3$predictions,y_test)
+#plotROC(a[,2],y_test,add=TRUE,col='orange')
+
+#pred3 = as.numeric(pred3$predictions > 0.5)
+
+
+
 # OUT SAMPLE error
-sum(pred == y_test)
+#print(mean(pred == y_test))
 #sum(pred2 == y_test)
-sum(pred3 == y_test)
+#print(mean(pred3 == y_test))
+
+
+cat(paste("xbart rmse on probabilities: ", round(sqrt(mean((a-pr)^2)),3)),"\n")
+cat(paste("ranger rmse on probabilities: ", round(sqrt(mean((pred3-pr)^2)),3)),"\n")
+cat(paste("xgboost rmse on probabilities: ", round(sqrt(mean((phat.xgb-pr)^2)),3)),"\n")
+
+#par(mfrow=c(1,3))
+#plot(pred3[,1],pr[,1],pch=20,cex=0.5)
+#plot(pred3[,2],pr[,2],pch=20,cex=0.5)
+#plot(pred3[,3],pr[,3],pch=20,cex=0.5)
+
+par(mfrow=c(1,3))
+plot(a[,1],pr[,1],pch=20,cex=0.75)
+plot(a[,2],pr[,2],pch=20,cex=0.75)
+plot(a[,3],pr[,3],pch=20,cex=0.75)
+
+
+yhat = apply(a,1,which.max)-1
+yhat.rf = apply(pred3,1,which.max)-1
+cat(paste("xbart classification accuracy: ",round(mean(y_test == yhat),3)),"\n")
+cat(paste("ranger classification accuracy: ", round(mean(y_test == yhat.rf),3)),"\n")
+cat(paste("xgboost classification accuracy: ", round(mean(yhat.xgb == y_test),3)),"\n")

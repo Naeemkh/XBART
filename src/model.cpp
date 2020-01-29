@@ -298,7 +298,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike, tree tree)
 {
     // Update delta_loglike for current trees
-    size_t K = delta_cand.size();
+    
     tree::npv bv;
     std::vector<double> theta_vector;
     tree.getbots(bv);
@@ -307,8 +307,10 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     double ret = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
     
-    for (size_t i = 0; i < K; i++)
+    size_t K = delta_cand.size(); // number of delta candiates
+    for (size_t i = 0; i < K; i++)  // evaluate log-likelihood for all delta values
     {   
+        // the log-likelihood for current tree is the sum over al leaves
         delta_loglike[tree_ind][i] = 0;
         for(size_t j = 0; j < B; j++)
         {
