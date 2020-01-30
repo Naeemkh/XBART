@@ -39,12 +39,12 @@ lam[,3] = 3*X_train[,3]^2
 lamt[,1] = 2*abs(2*X_test[,1] - X_test[,2])
 lamt[,2] = 1
 lamt[,3] = 3*X_test[,3]^2
-pr = exp(0.5*lam)
+pr = exp(10*lam)
 # pr = lam
 pr = t(scale(t(pr),center=FALSE, scale = rowSums(pr)))
 y_train = sapply(1:n,function(j) sample(0:(k-1),1,prob=pr[j,]))
 
-pr = exp(0.5*lamt)
+pr = exp(10*lamt)
 # pr = lamt
 pr = t(scale(t(pr),center=FALSE, scale = rowSums(pr)))
 y_test = sapply(1:nt,function(j) sample(0:(k-1),1,prob=pr[j,]))
@@ -68,10 +68,9 @@ fit = XBART.multinomial(y=matrix(y_train), num_class=3, X=X_train, Xtest=X_test,
             Nmin=10, num_cutpoints=100, alpha=0.95, beta=1.25, tau=50/num_trees, 
             no_split_penality = 1, burnin = burnin, mtry = 3, p_categorical = 0L, 
             kap = 1, s = 1, verbose = FALSE, parallel = FALSE, set_random_seed = FALSE, 
-            random_seed = NULL, sample_weights_flag = TRUE, delta = seq(1.1, 2, 0.05), concn = 1)
-# delta >= 0.1 otherwise it produce error...
-# look in to case delta = c(0.05) 
-# problem: delta always prefer the smallest
+            random_seed = NULL, sample_weights_flag = TRUE, 
+            delta = c(seq(1, 10, 0.5)), concn = 5)
+
 
 # number of sweeps * number of observations * number of classes
 #dim(fit$yhats_test)
@@ -124,9 +123,15 @@ plot(a[,2],pr[,2],pch=20,cex=0.75)
 plot(a[,3],pr[,3],pch=20,cex=0.75)
 
 yhat = apply(a,1,which.max)-1
-# yhat.rf = apply(pred3,1,which.max)-1
 cat(paste("xbart classification accuracy: ",round(mean(y_test == yhat),3)),"\n")
-# cat(paste("ranger classification accuracy: ", round(mean(y_test == yhat.rf),3)),"\n")
 cat(paste("xgboost classification accuracy: ", round(mean(yhat.xgb == y_test),3)),"\n")
+
+spr <- split(a, row(a))
+logloss <- sum(mapply(function(x,y) -log(x[y]), spr, y_test+1, SIMPLIFY =TRUE))
+spr <- split(phat.xgb, row(phat.xgb))
+logloss.xgb <- sum(mapply(function(x,y) -log(x[y]), spr, y_test+1, SIMPLIFY =TRUE))
+
+cat(paste("xbart logloss : ",round(logloss,3)),"\n")
+cat(paste("xgboost logloss : ", round(logloss.xgb,3)),"\n")
 
 table(fit$delta)
