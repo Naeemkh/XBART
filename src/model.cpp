@@ -295,37 +295,55 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     return;
 }
 
-void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike, tree tree)
+void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, tree tree)
 {
     // Update delta_loglike for current trees
-    
+    size_t K = delta_cand.size(); // number of delta candiates
     tree::npv bv;
     std::vector<double> theta_vector;
     tree.getbots(bv);
     size_t B = bv.size();
-    std::cout << "tree " << tree_ind << ": number of leaves: " << B << endl;
-    double ret = 0;
+    // std::cout << "tree " << tree_ind << ": number of leaves: " << B << endl;
+    double ret1 = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
+    std::vector<double> ret3(K, 0.0);
     
-    size_t K = delta_cand.size(); // number of delta candiates
-    for (size_t i = 0; i < K; i++)  // evaluate log-likelihood for all delta values
-    {   
-        // the log-likelihood for current tree is the sum over al leaves
-        delta_loglike[tree_ind][i] = 0;
-        for(size_t j = 0; j < B; j++)
+    for(size_t b = 0; b < B; b++)
+    {
+        theta_vector = bv[b]->gettheta_vector();
+        for(size_t j = 0; j < dim_residual; j++)
         {
-            theta_vector = bv[j]->gettheta_vector();
-            ret = 0;
-            for(size_t k = 0; k < dim_residual; k++)
+            ret1 += (concn - 1) * log(theta_vector[j]) - concn * theta_vector[j];
+            for(size_t i=0; i< K; i++)
             {
-                delta_loglike[tree_ind][i] += (concn - 1) * log(theta_vector[k]) - concn * theta_vector[k];
-                ret += pow(concn * theta_vector[k], concn * (delta_cand[i] - 1));
+                ret3[i] += pow(concn * theta_vector[j], concn * (delta_cand[i] - 1));
             }
-            delta_loglike[tree_ind][i] += log(ret);
         }
-        delta_loglike[tree_ind][i] += ret2;
-        delta_loglike[tree_ind][i] += - B * lgamma(concn * delta_cand[i]);
     }
+
+    for(size_t i = 0; i < K; i++)
+    {
+        delta_loglike[tree_ind][i] += ret1 + ret2 + log(ret3[i]) - B * lgamma(concn * delta_cand[i]);
+    }
+
+    // for (size_t i = 0; i < K; i++)  // evaluate log-likelihood for all delta values
+    // {   
+    //     // the log-likelihood for current tree is the sum over al leaves
+    //     delta_loglike[tree_ind][i] = 0;
+    //     for(size_t j = 0; j < B; j++)
+    //     {
+    //         theta_vector = bv[j]->gettheta_vector();
+    //         ret = 0;
+    //         for(size_t k = 0; k < dim_residual; k++)
+    //         {
+    //             ret += pow(concn * theta_vector[k], concn * (delta_cand[i] - 1));
+    //         }
+    //         delta_loglike[tree_ind][i] += log(ret);
+    //     }
+    //     delta_loglike[tree_ind][i] += ret1;
+    //     delta_loglike[tree_ind][i] += ret2;
+    //     delta_loglike[tree_ind][i] += - B * lgamma(concn * delta_cand[i]);
+    // }
     // std::cout << "delta_loglike " << delta_loglike[tree_ind] << endl;
 
     // Draw Delta
@@ -346,6 +364,11 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     state->update_sigma(delta_cand[d(state->gen)]);
     // std::cout << "delta likeihood " << delta_likelihood << endl;
     // std::cout << "delta " << state->sigma << endl;
+
+    // std::fill(delta_likelihood.begin(), delta_likelihood.end(), 1.0);
+    // std::discrete_distribution<> g(delta_likelihood.begin(), delta_likelihood.end());
+    // state->update_sigma(delta_cand[g(state->gen)]);
+    // std::cout << "fake delta " << state->sigma << endl;
 
     /*
     std::vector<double> full_residual(state->n_y);

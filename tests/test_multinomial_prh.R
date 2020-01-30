@@ -81,33 +81,18 @@ cat(paste("\n", "xbart runtime: ", round(tm["elapsed"],3)," seconds"),"\n")
 a = apply(fit$yhats_test[burnin:num_sweeps,,], c(2,3), median)
 pred = apply(a,1,which.max)-1
 
-# fit$delta
-
-cat(paste('median of delta draws ', median(fit$delta), '\n'))
-
-# final predcition
-#pred = as.numeric(a[,1] < a[,2])
-
-
-# Compare with BART probit
-#fit2 = pbart(X_train, y_train)
-
-#pred2 = predict(fit2, X_test)
-#pred2 = as.numeric(pred2$prob.test.mean > 0.5)
-
-
 
 # Compare with ranger
-data = data.frame( y = y_train, X = X_train)
-data.test = data.frame(X = X_test)
-tm = proc.time()
-fit3 = ranger(as.factor(y) ~ ., data = data,probability=TRUE, num.trees = 1000)
-
-
-
-pred3 = predict(fit3, data.test)$predictions
-tm = proc.time()-tm
-cat(paste("ranger runtime: ", round(tm["elapsed"],3)," seconds","\n"))
+# data = data.frame( y = y_train, X = X_train)
+# data.test = data.frame(X = X_test)
+# tm = proc.time()
+# fit3 = ranger(as.factor(y) ~ ., data = data,probability=TRUE, num.trees = 1000)
+# 
+# 
+# 
+# pred3 = predict(fit3, data.test)$predictions
+# tm = proc.time()-tm
+# cat(paste("ranger runtime: ", round(tm["elapsed"],3)," seconds","\n"))
 
 
 tm = proc.time()
@@ -129,38 +114,19 @@ phat.xgb <- matrix(phat.xgb, ncol=k, byrow=TRUE)
 yhat.xgb <- max.col(phat.xgb) - 1
 
 
-
-#plotROC(pred3$predictions,y_test)
-#plotROC(a[,2],y_test,add=TRUE,col='orange')
-
-#pred3 = as.numeric(pred3$predictions > 0.5)
-
-
-
-# OUT SAMPLE error
-#print(mean(pred == y_test))
-#sum(pred2 == y_test)
-#print(mean(pred3 == y_test))
-
-# sum(log(a[y_test]))
-
 cat(paste("xbart rmse on probabilities: ", round(sqrt(mean((a-pr)^2)),3)),"\n")
-cat(paste("ranger rmse on probabilities: ", round(sqrt(mean((pred3-pr)^2)),3)),"\n")
+# cat(paste("ranger rmse on probabilities: ", round(sqrt(mean((pred3-pr)^2)),3)),"\n")
 cat(paste("xgboost rmse on probabilities: ", round(sqrt(mean((phat.xgb-pr)^2)),3)),"\n")
-
-#par(mfrow=c(1,3))
-#plot(pred3[,1],pr[,1],pch=20,cex=0.5)
-#plot(pred3[,2],pr[,2],pch=20,cex=0.5)
-#plot(pred3[,3],pr[,3],pch=20,cex=0.5)
 
 par(mfrow=c(1,3))
 plot(a[,1],pr[,1],pch=20,cex=0.75)
 plot(a[,2],pr[,2],pch=20,cex=0.75)
 plot(a[,3],pr[,3],pch=20,cex=0.75)
 
-
 yhat = apply(a,1,which.max)-1
-yhat.rf = apply(pred3,1,which.max)-1
+# yhat.rf = apply(pred3,1,which.max)-1
 cat(paste("xbart classification accuracy: ",round(mean(y_test == yhat),3)),"\n")
-cat(paste("ranger classification accuracy: ", round(mean(y_test == yhat.rf),3)),"\n")
+# cat(paste("ranger classification accuracy: ", round(mean(y_test == yhat.rf),3)),"\n")
 cat(paste("xgboost classification accuracy: ", round(mean(yhat.xgb == y_test),3)),"\n")
+
+table(fit$delta)
