@@ -483,6 +483,8 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     matrix<double> delta_draw_xinfo;
     ini_matrix(delta_draw_xinfo, num_trees, num_sweeps);  
 
+    matrix<double> tree_size_xinfo;
+    ini_matrix(tree_size_xinfo, num_trees, num_sweeps);  
 
     // // Create trees
     vector<vector<tree>> *trees2 = new vector<vector<tree>>(num_sweeps);
@@ -522,7 +524,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     ini_matrix(delta_loglike, delta_std.size(), num_trees);
     
     ////////////////////////////////////////////////////////////////
-    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples, delta_draw_xinfo, delta_loglike);
+    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples, delta_draw_xinfo, delta_loglike, tree_size_xinfo);
 
     // TODO: Implement predict OOS
 
@@ -550,6 +552,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     Rcpp::NumericMatrix yhats_test(N_test, num_sweeps);
     Rcpp::NumericVector split_count_sum(p);                // split counts
     Rcpp::NumericMatrix delta_draw(num_trees, num_sweeps); // save predictions of each tree
+    Rcpp::NumericMatrix tree_size(num_trees, num_sweeps); // save size of each tree
     Rcpp::XPtr<std::vector<std::vector<tree>>> tree_pnt(trees2, true);
     Rcpp::NumericMatrix phi_sample_rcpp(N, num_sweeps * num_trees);
 
@@ -574,11 +577,18 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
             yhats_test(i, j) = yhats_test_xinfo[j][i];
         }
     }
-     for (size_t i = 0; i < num_trees; i++)
+    for (size_t i = 0; i < num_trees; i++)
     {
         for (size_t j = 0; j < num_sweeps; j++)
         {
             delta_draw(i, j) = delta_draw_xinfo[j][i];
+        }
+    }
+    for (size_t i = 0; i < num_trees; i++)
+    {
+        for (size_t j = 0; j < num_sweeps; j++)
+        {
+            tree_size(i, j) = tree_size_xinfo[j][i];
         }
     }
     for (size_t i = 0; i < p; i++)
@@ -606,6 +616,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
         Rcpp::Named("num_class") = num_class,
         Rcpp::Named("yhats_test") = output,
         Rcpp::Named("delta") = delta_draw,
+        Rcpp::Named("tree_size") = tree_size,
         Rcpp::Named("phi") = phi_sample_rcpp,
         Rcpp::Named("importance") = split_count_sum,
         Rcpp::Named("model_list") = Rcpp::List::create(Rcpp::Named("tree_pnt") = tree_pnt, Rcpp::Named("y_mean") = y_mean, Rcpp::Named("p") = p));
