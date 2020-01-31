@@ -1,5 +1,6 @@
 #include "tree.h"
 #include "model.h"
+#include <cfenv>
 
 //////////////////////////////////////////////////////////////////////////////////////
 //
@@ -297,6 +298,9 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
 void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, tree tree)
 {
+    std::feclearexcept(FE_OVERFLOW);
+    std::feclearexcept(FE_UNDERFLOW);
+
     // Update delta_loglike for current trees
     size_t K = delta_cand.size(); // number of delta candiates
     tree::npv bv;
@@ -305,6 +309,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     size_t B = bv.size();
     // std::cout << "tree " << tree_ind << ": number of leaves: " << B << endl;
     double ret1 = 0;
+    // double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
     std::vector<double> ret3(K, 0.0);
     std::vector<double> temp(dim_residual, 0.0);
@@ -324,8 +329,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
             // temp_max = pow(theta_vector[0], concn * (delta_cand[i] - 1));
             for(size_t j = 0; j < dim_residual; j++)
             {
-                temp[j] = pow(theta_vector[j], concn * (delta_cand[i] - 1));
-                // if (temp[j] > temp_max) {temp_max = temp[j];}
+                temp[j] = exp(concn * (delta_cand[i]-1) * log(theta_vector[j]) - lgamma(concn * delta_cand[i]));
             }
             // for(size_t j = 0; j < dim_residual; j++)
             // {
@@ -341,28 +345,19 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     for(size_t i = 0; i < K; i++)
     {
         // cout << "i = " << i << " ret3 = " << ret3[i] << endl;
-        delta_loglike[tree_ind][i] += ret1 + ret2 + ret3[i] - B * lgamma(concn * delta_cand[i]) + B * concn * (delta_cand[i] - 1) * log(concn);
+        delta_loglike[tree_ind][i] = ret1 + ret2 + ret3[i] + B * concn * (delta_cand[i] - 1) * log(concn);
+        // cout << "delta = " << delta_cand[i] << " likelihood " << delta_loglike[tree_ind][i] << endl;
+        if((bool)std::fetestexcept(FE_OVERFLOW)) 
+        {
+            cout << "likelihood overflows for delta " << delta_cand[i] << endl;
+            abort();
+        }
+        else if((bool)std::fetestexcept(FE_UNDERFLOW))
+        {
+            cout << "likelihood underflows for delta " << delta_cand[i] << endl;
+            abort();
+        }
     }
-
-    // for (size_t i = 0; i < K; i++)  // evaluate log-likelihood for all delta values
-    // {   
-    //     // the log-likelihood for current tree is the sum over al leaves
-    //     delta_loglike[tree_ind][i] = 0;
-    //     for(size_t j = 0; j < B; j++)
-    //     {
-    //         theta_vector = bv[j]->gettheta_vector();
-    //         ret = 0;
-    //         for(size_t k = 0; k < dim_residual; k++)
-    //         {
-    //             ret += pow(concn * theta_vector[k], concn * (delta_cand[i] - 1));
-    //         }
-    //         delta_loglike[tree_ind][i] += log(ret);
-    //     }
-    //     delta_loglike[tree_ind][i] += ret1;
-    //     delta_loglike[tree_ind][i] += ret2;
-    //     delta_loglike[tree_ind][i] += - B * lgamma(concn * delta_cand[i]);
-    // }
-    // std::cout << "delta_loglike " << delta_loglike[tree_ind] << endl;
 
     // Draw Delta
     
