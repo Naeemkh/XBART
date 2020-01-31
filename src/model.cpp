@@ -259,6 +259,8 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
     // double r;
     // double s;
+    double concn = state->sigma2;
+    double delta = state->sigma;
 
     for (size_t j = 0; j < dim_theta; j++)
     {
@@ -279,7 +281,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     std::vector<double> weight(dim_theta, 0.0);
     for (size_t j = 0; j < dim_theta; j++)
     {
-        weight[j] = exp( concn * (1 - state->sigma) * log(concn + suff_stat[dim_theta + j])  + lgamma(concn * state->sigma + suff_stat[j]) - lgamma(concn + suff_stat[j]));
+        weight[j] = exp( concn * (1 - delta) * log(concn + suff_stat[dim_theta + j])  + lgamma(concn * delta + suff_stat[j]) - lgamma(concn + suff_stat[j]));
     }
     // draw category
     // std::cout << "weight " << weight << endl;
@@ -288,7 +290,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     // std::cout << "favor category " << J << endl;
 
     // re-draw lambda for category J
-    std::gamma_distribution<double> gammadist(concn * state->sigma + suff_stat[J], 1.0); // ~Gamma(c*delta + r, c + s);
+    std::gamma_distribution<double> gammadist(concn * delta + suff_stat[J], 1.0); // ~Gamma(c*delta + r, c + s);
     // std::cout << "c*delta " << concn * state->sigma << " suff_stat " << suff_stat[J] << endl;
 
     theta_vector[J] = gammadist(state->gen) / (concn + suff_stat[dim_theta + J]);
@@ -296,92 +298,19 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
     return;
 }
 
-void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, tree tree)
+void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, matrix<double> &concn_loglike, tree tree)
 {
-    std::feclearexcept(FE_OVERFLOW);
-    std::feclearexcept(FE_UNDERFLOW);
-
-    // Update delta_loglike for current trees
-    size_t K = delta_cand.size(); // number of delta candiates
+    matrix<double> theta_vector;
     tree::npv bv;
-    std::vector<double> theta_vector;
     tree.getbots(bv);
-    size_t B = bv.size();
-    // std::cout << "tree " << tree_ind << ": number of leaves: " << B << endl;
-    double ret1 = 0;
-    // double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
-    double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
-    std::vector<double> ret3(K, 0.0);
-    std::vector<double> temp(dim_residual, 0.0);
-    double temp_max = -INFINITY;
-    double temp_sum = 0.0;
-    
-    for(size_t b = 0; b < B; b++)
+    size_t B = tree.nbots();
+    ini_matrix(theta_vector, dim_residual, B);
+    for (size_t i = 0; i < B; i++)
     {
-        theta_vector = bv[b]->gettheta_vector();
-        for(size_t j = 0; j < dim_residual; j++)
-        {
-            ret1 += (concn - 1) * log(theta_vector[j]) - concn * theta_vector[j];
-        }
-
-        for(size_t i = 0; i< K; i++)
-        {
-            // temp_max = pow(theta_vector[0], concn * (delta_cand[i] - 1));
-            for(size_t j = 0; j < dim_residual; j++)
-            {
-                temp[j] = exp(concn * (delta_cand[i]-1) * log(theta_vector[j]) - lgamma(concn * delta_cand[i]));
-            }
-            // for(size_t j = 0; j < dim_residual; j++)
-            // {
-            //     temp[j] = temp[j] / temp_max;
-            // }
-            vec_sum(temp, temp_sum);
-            // cout << "temp " << log(temp_sum) << " temp_max " << temp_max << endl;
-            ret3[i] += log(temp_sum); //+ log(temp_max); 
-            // improve this to avoid the sum going to inf         
-        }
+        theta_vector[i] = bv[i]->gettheta_vector();
     }
 
-    for(size_t i = 0; i < K; i++)
-    {
-        // cout << "i = " << i << " ret3 = " << ret3[i] << endl;
-        delta_loglike[tree_ind][i] = ret1 + ret2 + ret3[i] + B * concn * (delta_cand[i] - 1) * log(concn);
-        // cout << "delta = " << delta_cand[i] << " likelihood " << delta_loglike[tree_ind][i] << endl;
-        if((bool)std::fetestexcept(FE_OVERFLOW)) 
-        {
-            cout << "likelihood overflows for delta " << delta_cand[i] << endl;
-            abort();
-        }
-        else if((bool)std::fetestexcept(FE_UNDERFLOW))
-        {
-            cout << "likelihood underflows for delta " << delta_cand[i] << endl;
-            abort();
-        }
-    }
-
-    // Draw Delta
-    
-    std::vector<double> delta_likelihood(K, 0.0);
-
-    double loglike_max = -INFINITY;
-    for (size_t i = 0; i < K; i++)
-    {
-        temp_delta_loglike[i] += delta_loglike[tree_ind][i];
-        if (temp_delta_loglike[i] > loglike_max){ loglike_max = temp_delta_loglike[i]; }
-    }
-    for (size_t i = 0; i < K; i++)
-    {
-        delta_likelihood[i] = exp(temp_delta_loglike[i] - loglike_max);
-    }
-    std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
-    state->update_sigma(delta_cand[d(state->gen)]);
-    // std::cout << "delta likeihood " << delta_likelihood << endl;
-    // std::cout << "delta " << state->sigma << endl;
-
-    // std::fill(delta_likelihood.begin(), delta_likelihood.end(), 1.0);
-    // std::discrete_distribution<> g(delta_likelihood.begin(), delta_likelihood.end());
-    // state->update_sigma(delta_cand[g(state->gen)]);
-    // std::cout << "fake delta " << state->sigma << endl;
+    state->update_sigma(update_delta(tree_ind, delta_loglike, delta_cand, dim_residual, theta_vector, state->sigma2, state->gen), true);
 
     /*
     std::vector<double> full_residual(state->n_y);
@@ -482,7 +411,7 @@ void LogitModel::calculateOtherSideSuffStat(std::vector<double> &parent_suff_sta
     return;
 }
 
-void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike)
+void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike, matrix<double> concn_loglike)
 {
 
     size_t next_index = tree_ind + 1;
@@ -511,6 +440,12 @@ void LogitModel::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual
     {
         temp_delta_loglike[i] = temp_delta_loglike[i] - delta_loglike[next_index][i];
     }
+    K = temp_concn_loglike.size();
+    for (size_t i = 0; i < K; i++)
+    {
+        temp_concn_loglike[i] = temp_concn_loglike[i] - concn_loglike[next_index][i];   
+    }
+    
 
     return;
 }
@@ -564,7 +499,7 @@ double LogitModel::likelihood(std::vector<double> &temp_suff_stat, std::vector<d
 
     //return - 0.5 * nb * log(2 * 3.141592653) -  0.5 * nb * log(sigma2) + 0.5 * log(sigma2) - 0.5 * log(nbtau + sigma2) - 0.5 * y_squared_sum / sigma2 + 0.5 * tau * pow(y_sum, 2) / (sigma2 * (nbtau + sigma2));
 
-    return (LogitLIL(local_suff_stat, state->sigma));
+    return (LogitLIL(local_suff_stat, state->sigma, state->sigma2));
 }
 
 /*

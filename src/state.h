@@ -51,13 +51,6 @@ public:
     double sigma;
     double sigma2; // sigma squared
 
-    void update_sigma(double sigma)
-    {
-        this->sigma = sigma;
-        this->sigma2 = pow(sigma, 2);
-        return;
-    }
-    
     State(const double *Xpointer, matrix<size_t> &Xorder_std, size_t N, size_t p, size_t num_trees, size_t p_categorical, size_t p_continuous, bool set_random_seed, size_t random_seed, size_t n_min, size_t n_cutpoints, bool parallel, size_t mtry, const double *X_std, size_t num_sweeps, bool sample_weights_flag, std::vector<double> *y_std, double sigma, size_t max_depth, double ini_var_yhat, size_t burnin, size_t dim_residual)
     {
 
@@ -109,6 +102,9 @@ public:
         return;
     }
 
+    void update_sigma(double sigma) { return; };
+
+
     void update_split_counts(size_t tree_ind)
     {
         mtry_weight_current_tree = mtry_weight_current_tree + split_count_current_tree;
@@ -130,25 +126,22 @@ public:
 };
 
 
-// class MultinomialState : public State
-// {
-// public:
+class MultinomialState : public State
+{
+public:
 
-//     double delta;
-//     std::vector<double> temp_delta_loglike;
+    // std::vector<double> delta_loglike;
+    // std::vector<double> concn_loglike;
+    
 
-//     MultinomialState(const double *Xpointer, matrix<size_t> &Xorder_std, size_t N, size_t p, size_t num_trees, size_t p_categorical, size_t p_continuous, bool set_random_seed, size_t random_seed, size_t n_min, size_t n_cutpoints, bool parallel, size_t mtry, const double *X_std, size_t num_sweeps, bool sample_weights_flag, std::vector<double> *y_std, size_t max_depth, double ini_var_yhat, size_t burnin, size_t dim_residual, double delta, std::vector<double> temp_delta_loglike) : State(Xpointer, Xorder_std, N, p, num_trees, p_categorical, p_continuous, set_random_seed, random_seed, n_min, n_cutpoints, parallel, mtry, X_std, num_sweeps, sample_weights_flag, y_std, sigma, max_depth, ini_var_yhat, burnin, dim_residual)
-//     {
-//         this->delta = delta;
-//         this->temp_delta_loglike = temp_delta_loglike;
-//     }
+    MultinomialState(const double *Xpointer, matrix<size_t> &Xorder_std, size_t N, size_t p, size_t num_trees, size_t p_categorical, size_t p_continuous, bool set_random_seed, size_t random_seed, size_t n_min, size_t n_cutpoints, bool parallel, size_t mtry, const double *X_std, size_t num_sweeps, bool sample_weights_flag, std::vector<double> *y_std, size_t max_depth, double ini_var_yhat, size_t burnin, size_t dim_residual, double delta, double concn) : State(Xpointer, Xorder_std, N, p, num_trees, p_categorical, p_continuous, set_random_seed, random_seed, n_min, n_cutpoints, parallel, mtry, X_std, num_sweeps, sample_weights_flag, y_std, 1.0, max_depth, ini_var_yhat, burnin, dim_residual)
+    {
+        this->sigma = delta;
+        this->sigma2 = concn;
+    }
 
-//     void update_sigma(double delta)
-//     {
-//         this->delta = delta;
-//         return;
-//     }
-// };
+    void update_sigma(double delta, bool is_delta);
+};
 
 
 #endif

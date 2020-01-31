@@ -1,4 +1,4 @@
-XBART.multinomial <- function(y, num_class, X, Xtest, num_trees, num_sweeps, max_depth = 250, Nmin = 1, num_cutpoints = 100, alpha = 0.95, beta = 1.25, tau = NULL, no_split_penality = NULL, delta = c(1), concn = 1, burnin = 1L, mtry = NULL, p_categorical = 0L, kap = 16, s = 4, verbose = FALSE, parallel = TRUE, random_seed = NULL, sample_weights_flag = TRUE, ...) {
+XBART.multinomial <- function(y, num_class, X, Xtest, num_trees, num_sweeps, max_depth = 250, Nmin = 1, num_cutpoints = 100, alpha = 0.95, beta = 1.25, tau = NULL, no_split_penality = NULL, delta = c(1.1), concn = c(1), burnin = 1L, mtry = NULL, p_categorical = 0L, kap = 16, s = 4, verbose = FALSE, parallel = TRUE, random_seed = NULL, sample_weights_flag = TRUE, ...) {
 
   if (class(X) != "matrix") {
     cat("Input X is not a matrix, try to convert type.\n")
@@ -62,6 +62,11 @@ XBART.multinomial <- function(y, num_class, X, Xtest, num_trees, num_sweeps, max
   if (! is.vector(delta)){
     cat('Input delta is not a vector, try to covert type.\n')
     delta = as.vector(delta)
+  }
+
+  if (! is.vector(concn)){
+    cat('Input concn is not a vector, try to covert type.\n')
+    concn = as.vector(concn)
   }
   # check input type
 

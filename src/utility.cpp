@@ -1,4 +1,5 @@
 #include "utility.h"
+#include <cfenv>
 
 ThreadPool thread_pool;
 
@@ -241,4 +242,84 @@ size_t count_non_zero(std::vector<double> &vec)
         }
     }
     return output;
+}
+
+double update_delta(size_t tree_ind, matrix<double> &delta_loglike, std::vector<double> delta_cand, double dim_residual,  matrix<double> theta_vector, double concn, std::mt19937 &gen)
+{
+    std::feclearexcept(FE_OVERFLOW);
+    std::feclearexcept(FE_UNDERFLOW);
+
+    // Update delta_loglike for current trees
+    size_t K = delta_cand.size(); // number of delta candiates
+    size_t B = theta_vector.size();
+
+    // break log-likelihood into parts
+    double ret1 = 0;
+    double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
+    std::vector<double> ret3(K, 0.0);
+    std::vector<double> temp(dim_residual, 0.0);
+    // double temp_max = -INFINITY;
+    // double temp_sum = 0.0;
+    
+    for(size_t b = 0; b < B; b++)
+    {
+        for(size_t j = 0; j < dim_residual; j++)
+        {
+            ret1 += (concn - 1) * log(theta_vector[b][j]) - concn * theta_vector[b][j];
+        }
+
+        for(size_t i = 0; i< K; i++)
+        {
+            // temp_max = pow(theta_vector[b][0], concn * (delta_cand[i] - 1));
+            for(size_t j = 0; j < dim_residual; j++)
+            {
+                temp[j] = exp(concn * (delta_cand[i]-1) * log(theta_vector[b][j]) - lgamma(concn * delta_cand[i]));
+            }
+            vec_sum(temp, temp_sum);
+            ret3[i] += log(temp_sum); //+ log(temp_max); 
+            // improve this to avoid the sum going to inf         
+        }
+    }
+    
+    for(size_t i = 0; i < K; i++)
+    {
+        delta_loglike[tree_ind][i] = ret1 + ret2 + ret3[i] + B * concn * (delta_cand[i] - 1) * log(concn);
+        // cout << "delta = " << delta_cand[i] << " likelihood " << delta_loglike[tree_ind][i] << endl;
+
+        if((bool)std::fetestexcept(FE_OVERFLOW)) 
+        {
+            cout << "likelihood overflows for delta " << delta_cand[i] << endl;
+            abort();
+        }
+        else if((bool)std::fetestexcept(FE_UNDERFLOW))
+        {
+            cout << "likelihood underflows for delta " << delta_cand[i] << endl;
+            abort();
+        }
+    }
+
+    // Draw Delta
+    
+    std::vector<double> delta_likelihood(K, 0.0);
+    double loglike_max = -INFINITY;
+
+    for (size_t i = 0; i < K; i++)
+    {
+        temp_delta_loglike[i] += delta_loglike[tree_ind][i];
+        if (temp_delta_loglike[i] > loglike_max){ loglike_max = temp_delta_loglike[i]; }
+    }
+    for (size_t i = 0; i < K; i++)
+    {
+        delta_likelihood[i] = exp(temp_delta_loglike[i] - loglike_max);
+    }
+    std::discrete_distribution<> d(delta_likelihood.begin(), delta_likelihood.end());
+    return(delta_cand[d(gen)]);
+    // std::cout << "delta likeihood " << delta_likelihood << endl;
+    // std::cout << "delta " << state->sigma << endl;
+
+    // std::fill(delta_likelihood.begin(), delta_likelihood.end(), 1.0);
+    // std::discrete_distribution<> g(delta_likelihood.begin(), delta_likelihood.end());
+    // state->update_sigma(delta_cand[g(state->gen)]);
+    // std::cout << "fake delta " << state->sigma << endl;
+
 }

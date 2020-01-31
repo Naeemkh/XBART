@@ -414,7 +414,7 @@ Rcpp::List XBART_CLT_cpp(arma::mat y, arma::mat X, arma::mat Xtest, size_t num_t
 
 // [[Rcpp::plugins(cpp11)]]
 // [[Rcpp::export]]
-Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat X, arma::mat Xtest, size_t num_trees, size_t num_sweeps, size_t max_depth, size_t n_min, size_t num_cutpoints, double alpha, double beta, double tau, double no_split_penality, Rcpp::DoubleVector delta, double concn, size_t burnin = 1, size_t mtry = 0, size_t p_categorical = 0, double kap = 16, double s = 4, bool verbose = false, bool parallel = true, bool set_random_seed = false, size_t random_seed = 0, bool sample_weights_flag = true)
+Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat X, arma::mat Xtest, size_t num_trees, size_t num_sweeps, size_t max_depth, size_t n_min, size_t num_cutpoints, double alpha, double beta, double tau, double no_split_penality, Rcpp::DoubleVector delta, Rcpp::DoubleVector concn, size_t burnin = 1, size_t mtry = 0, size_t p_categorical = 0, double kap = 16, double s = 4, bool verbose = false, bool parallel = true, bool set_random_seed = false, size_t random_seed = 0, bool sample_weights_flag = true)
 {
 
     auto start = system_clock::now();
@@ -480,6 +480,10 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     std::vector<double> delta_std(delta.length());
     rcpp_to_std_vector_double(delta, delta_std); 
 
+    // concn
+    std::vector<double> concn_std(concn.length());
+    rcpp_to_std_vector_double(concn, concn_std); 
+
     matrix<double> delta_draw_xinfo;
     ini_matrix(delta_draw_xinfo, num_trees, num_sweeps);  
 
@@ -499,7 +503,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     std::vector<double> phi(N);
     for(size_t i=0; i<N; ++i) phi[i] = 1;
     
-    LogitModel *model = new LogitModel(num_class, tau_a, tau_b, alpha, beta, &y_size_t, &phi, delta_std, concn);
+    LogitModel *model = new LogitModel(num_class, tau_a, tau_b, alpha, beta, &y_size_t, &phi, delta_std, concn_std);
     model->setNoSplitPenality(no_split_penality);
 
 
@@ -511,7 +515,8 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
 
     std::vector<double> initial_theta(num_class, 1);
     std::vector<double> initial_delta_loglike(delta_std.size(), 0.0);
-    std::unique_ptr<State> state(new State(Xpointer, Xorder_std, N, p, num_trees, p_categorical, p_continuous, set_random_seed, random_seed, n_min, num_cutpoints, parallel, mtry, Xpointer, num_sweeps, sample_weights_flag, &y_std, 1.0, max_depth, y_mean, burnin, model->dim_residual));
+    std::vector<double> initial_concn_loglike(delta_std.size(), 0.0);
+    std::unique_ptr<State> state(new MultinomialState(Xpointer, Xorder_std, N, p, num_trees, p_categorical, p_continuous, set_random_seed, random_seed, n_min, num_cutpoints, parallel, mtry, Xpointer, num_sweeps, sample_weights_flag, &y_std, max_depth, y_mean, burnin, model->dim_residual, 1.0, 1.0));
     
     // initialize X_struct
     std::unique_ptr<X_struct> x_struct(new X_struct(Xpointer, &y_std, N, Xorder_std, p_categorical, p_continuous, &initial_theta, num_trees));
@@ -522,9 +527,13 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
     // initialize delta_likelihood
     matrix<double> delta_loglike;
     ini_matrix(delta_loglike, delta_std.size(), num_trees);
+
+    // initialize concn_likelihood
+    matrix<double> concn_loglike;
+    ini_matrix(concn_loglike, concn_std.size(), num_trees);
     
     ////////////////////////////////////////////////////////////////
-    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples, delta_draw_xinfo, delta_loglike, tree_size_xinfo);
+    mcmc_loop_multinomial(Xorder_std, verbose, *trees2, no_split_penality, state, model, x_struct, phi_samples, delta_draw_xinfo, delta_loglike, concn_loglike, tree_size_xinfo);
 
     // TODO: Implement predict OOS
 

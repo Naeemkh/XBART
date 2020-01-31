@@ -167,7 +167,7 @@ void mcmc_loop_clt(matrix<size_t> &Xorder_std, bool verbose, matrix<double> &sig
 void mcmc_loop_multinomial(matrix<size_t> &Xorder_std, bool verbose,
                            vector<vector<tree>> &trees, double no_split_penality,
                            std::unique_ptr<State> &state, LogitModel *model,
-                           std::unique_ptr<X_struct> &x_struct, std::vector< std::vector<double> > &phi_samples, matrix<double> &delta_draw_xinfo, matrix<double> &delta_loglike, matrix<double> &tree_size_xinfo)
+                           std::unique_ptr<X_struct> &x_struct, std::vector< std::vector<double> > &phi_samples, matrix<double> &delta_draw_xinfo, matrix<double> &delta_loglike, matrix<double> &concn_loglike, matrix<double> &tree_size_xinfo)
 {
 
     if (state->parallel)
@@ -224,12 +224,12 @@ void mcmc_loop_multinomial(matrix<size_t> &Xorder_std, bool verbose,
             state->update_split_counts(tree_ind);
 
             // update partial fits and delta for the next tree
-            model->update_state(state, tree_ind, x_struct, delta_loglike, trees[sweeps][tree_ind]);
+            model->update_state(state, tree_ind, x_struct, delta_loglike, concn_loglike, trees[sweeps][tree_ind]);
 
             delta_draw_xinfo[sweeps][tree_ind] = state->sigma;
             tree_size_xinfo[sweeps][tree_ind] = trees[sweeps][tree_ind].nbots();
       
-            model->state_sweep(tree_ind, state->num_trees, state->residual_std, x_struct, delta_loglike);
+            model->state_sweep(tree_ind, state->num_trees, state->residual_std, x_struct, delta_loglike, concn_loglike);
 
             for(size_t kk = 0; kk < Xorder_std[0].size(); kk ++ ){
                 phi_samples[sweeps * state->num_trees + tree_ind][kk] = (*(model->phi))[kk];

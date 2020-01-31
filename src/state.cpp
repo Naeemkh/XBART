@@ -1,0 +1,21 @@
+#include "state.h"
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//
+//
+//  Multinomial State
+//
+//
+//////////////////////////////////////////////////////////////////////////////////////
+void MultinomialState::update_sigma(double delta, bool is_delta)
+{
+        if (is_delta){
+            this->sigma = delta;
+        }
+        else{
+            this->sigma2 = delta;
+        }
+        
+        return;
+    }

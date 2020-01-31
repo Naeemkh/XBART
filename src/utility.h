@@ -2,7 +2,6 @@
 #define GUARD_utility_h
 
 #include "common.h"
-
 #include "thread_pool.h"
 extern ThreadPool thread_pool;
 
@@ -143,5 +142,7 @@ double normal_density(double y, double mean, double var, bool take_log);
 bool is_non_zero(size_t x);
 
 size_t count_non_zero(std::vector<double> &vec);
+
+double update_delta(size_t tree_ind, matrix<double> &delta_loglike, std::vector<double> delta_cand, double dim_residual,  matrix<double> theta_vector, double concn, std::mt19937 &gen);
 
 #endif

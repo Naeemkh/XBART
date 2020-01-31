@@ -426,7 +426,7 @@ private:
     //size_t dim_suffstat = 0; // = 2*dim_theta;
     //std::vector<double> suff_stat_total;
 
-    double LogitLIL(const vector<double> &suffstats, double delta) const
+    double LogitLIL(const vector<double> &suffstats, double delta, double concn) const
     {
 
         size_t c = suffstats.size() / 2;
@@ -483,8 +483,10 @@ public:
     std::vector<double> *phi; // latent variables for mnl
     std::vector<double> delta_cand; // candidate of delta values
     std::vector<double> temp_delta_loglike;
+    std::vector<double> concn_cand; // candidate of concn values
+    std::vector<double> temp_concn_loglike;
 
-    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand, double concn) : Model(num_classes, 2*num_classes)
+    LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> delta_cand, std::vector<double> concn_cand) : Model(num_classes, 2*num_classes)
     {
         this->y_size_t = y_size_t;
         this->phi = phi;
@@ -494,10 +496,12 @@ public:
         this->beta = beta;
         //what should this be?
         this->dim_residual = num_classes;
-        this->concn = concn;
         this->delta_cand = delta_cand;
         this->temp_delta_loglike.resize(delta_cand.size());
         std::fill(this->temp_delta_loglike.begin(), this->temp_delta_loglike.end(), 0.0);
+        this->concn_cand = concn_cand;
+        this->temp_concn_loglike.resize(concn_cand.size());
+        std::fill(this->temp_concn_loglike.begin(), this->temp_concn_loglike.end(), 0.0);
     }
 
     LogitModel() : Model(2, 4) {}
@@ -508,7 +512,7 @@ public:
 
     void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf);
 
-    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, tree tree);
+    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct, matrix<double> &delta_loglike, matrix<double> &concn_loglike, tree tree);
 
     void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
 
@@ -516,7 +520,7 @@ public:
 
     void calculateOtherSideSuffStat(std::vector<double> &parent_suff_stat, std::vector<double> &lchild_suff_stat, std::vector<double> &rchild_suff_stat, size_t &N_parent, size_t &N_left, size_t &N_right, bool &compute_left_side);
 
-    void state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike);
+    void state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct, matrix<double> delta_loglike, matrix<double> concn_loglike);
 
     double likelihood(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split, std::unique_ptr<State> &state) const;
 
