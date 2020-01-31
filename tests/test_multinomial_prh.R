@@ -69,7 +69,7 @@ fit = XBART.multinomial(y=matrix(y_train), num_class=3, X=X_train, Xtest=X_test,
             no_split_penality = 1, burnin = burnin, mtry = 3, p_categorical = 0L, 
             kap = 1, s = 1, verbose = FALSE, parallel = FALSE, set_random_seed = FALSE, 
             random_seed = NULL, sample_weights_flag = TRUE, 
-            delta = c(seq(1, 10, 0.5)), concn = 5)
+            delta = c(seq(1, 20, 1)), concn = 0.5)
 
 
 # number of sweeps * number of observations * number of classes

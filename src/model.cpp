@@ -307,6 +307,9 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     double ret1 = 0;
     double ret2 = B * (dim_residual * concn * log(concn) - (dim_residual - 1) * lgamma(concn) - log(dim_residual));
     std::vector<double> ret3(K, 0.0);
+    std::vector<double> temp(dim_residual, 0.0);
+    double temp_max = -INFINITY;
+    double temp_sum = 0.0;
     
     for(size_t b = 0; b < B; b++)
     {
@@ -314,16 +317,31 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
         for(size_t j = 0; j < dim_residual; j++)
         {
             ret1 += (concn - 1) * log(theta_vector[j]) - concn * theta_vector[j];
-            for(size_t i=0; i< K; i++)
+        }
+
+        for(size_t i = 0; i< K; i++)
+        {
+            // temp_max = pow(theta_vector[0], concn * (delta_cand[i] - 1));
+            for(size_t j = 0; j < dim_residual; j++)
             {
-                ret3[i] += pow(concn * theta_vector[j], concn * (delta_cand[i] - 1));
+                temp[j] = pow(theta_vector[j], concn * (delta_cand[i] - 1));
+                // if (temp[j] > temp_max) {temp_max = temp[j];}
             }
+            // for(size_t j = 0; j < dim_residual; j++)
+            // {
+            //     temp[j] = temp[j] / temp_max;
+            // }
+            vec_sum(temp, temp_sum);
+            // cout << "temp " << log(temp_sum) << " temp_max " << temp_max << endl;
+            ret3[i] += log(temp_sum); //+ log(temp_max); 
+            // improve this to avoid the sum going to inf         
         }
     }
 
     for(size_t i = 0; i < K; i++)
     {
-        delta_loglike[tree_ind][i] += ret1 + ret2 + log(ret3[i]) - B * lgamma(concn * delta_cand[i]);
+        // cout << "i = " << i << " ret3 = " << ret3[i] << endl;
+        delta_loglike[tree_ind][i] += ret1 + ret2 + ret3[i] - B * lgamma(concn * delta_cand[i]) + B * concn * (delta_cand[i] - 1) * log(concn);
     }
 
     // for (size_t i = 0; i < K; i++)  // evaluate log-likelihood for all delta values
