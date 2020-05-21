@@ -575,7 +575,7 @@ void LogitModel::predict_std(const double *Xtestpointer, size_t N_test, size_t p
             for (size_t k = 0; k < dim_residual; k++)
             {
                 // denom += output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test];
-                denom += pow ( output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test], weight ) ;
+                denom += output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test];
             }
 
             // normalizing
@@ -664,7 +664,7 @@ void LogitModel::predict_std_standalone(const double *Xtestpointer, size_t N_tes
             for (size_t k = 0; k < dim_residual; k++)
             {
                 // denom += output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test];
-                denom += pow ( output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test], weight ) ;
+                denom +=  output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] ;
             }
 
             // normalizing
