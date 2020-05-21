@@ -65,8 +65,6 @@ public:
 
     virtual double likelihood(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split, std::unique_ptr<State> &state) const { return 0.0; };
 
-    virtual double likelihood_test(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split) const { return 0.0; };
-
     // virtual double likelihood_no_split(std::vector<double> &suff_stat, std::unique_ptr<State> &state) const { return 0.0; };
 
     virtual void ini_residual_std(std::unique_ptr<State> &state) { return; };
@@ -447,7 +445,8 @@ private:
         for (size_t j = 0; j < c; j++)
         {
             //!! devide s by min_sum_fits
-            ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j] / min_fits) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
+            // ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j] / min_fits) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
+            ret += -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) - log(weight) + lgamma(tau_a + suffstats[j] + 1/weight);
         }
         return ret;
     }
@@ -519,15 +518,13 @@ public:
 
     double likelihood(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split, std::unique_ptr<State> &state) const;
 
-    double likelihood_test(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split) const;
-
     // double likelihood_no_split(std::vector<double> &suff_stat, std::unique_ptr<State> &state) const;
 
     void ini_residual_std(std::unique_ptr<State> &state);
 
     void predict_std(const double *Xtestpointer, size_t N_test, size_t p, size_t num_trees, size_t num_sweeps, matrix<double> &yhats_test_xinfo, vector<vector<tree>> &trees, std::vector<double> &output_vec);
 
-    void predict_std_standalone(const double *Xtestpointer, size_t N_test, size_t p, size_t num_trees, size_t num_sweeps, matrix<double> &yhats_test_xinfo, vector<vector<tree>> &trees, std::vector<double> &output_vec, std::vector<size_t>& iteration);
+    void predict_std_standalone(const double *Xtestpointer, size_t N_test, size_t p, size_t num_trees, size_t num_sweeps, matrix<double> &yhats_test_xinfo, vector<vector<tree>> &trees, std::vector<double> &output_vec, std::vector<size_t>& iteration, double weight);
 };
 
 
