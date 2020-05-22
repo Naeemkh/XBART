@@ -451,9 +451,23 @@ private:
         return ret;
     }
 
-    double log_dlambda(const double lambda, const double w) const
+    double log_dlambda(const double &lambda, const double &w) const
     {
         return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) - tau_b * pow(lambda, w);
+    }
+
+    double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
+    { 
+        double f_j;
+        double sum_fits = 0.0;
+
+        for (size_t j = 0; j < dim_residual; j++)
+        {   
+            f_j = state->residual_std[j][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[j];
+            sum_fits += pow(f_j, w); 
+        }
+
+        return w * log(state->residual_std[(*state->y_std)[ind]][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[(*state->y_std)[ind]]) - log(sum_fits);
     }
 
     // void LogitSamplePars(vector<double> &suffstats, double &tau_a, double &tau_b, std::mt19937 &generator, std::vector<double> &theta_vector)

@@ -306,45 +306,70 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     
     std::vector<double> log_lambda_prior(weight_std.size(), 0.0);
 
-    #pragma omp parallel for
-    for (size_t i = 0; i < state->residual_std[0].size(); i++)
-    {
-        sum_fits = 0;
-        sum_log_fits = 0;
-        // max_logf = -INFINITY;
-        // std::fill(sum_fits_w.begin(), sum_fits_w.end(), 0.0);
-        for (size_t j = 0; j < dim_theta; ++j)
-        {
-            // f_j[j]= state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j];
-            // sum_log_fits += log(f_j[j]);
-            log_f[j]= log(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j]);
-            // if (log_f[j] > max_logf) {max_logf = log_f[j];}
+    // #pragma omp parallel for
+    // for (size_t i = 0; i < state->residual_std[0].size(); i++)
+    // {
+    //     // sum_fits = 0;
+    //     // sum_log_fits = 0;
+    //     // // max_logf = -INFINITY;
+    //     // // std::fill(sum_fits_w.begin(), sum_fits_w.end(), 0.0);
+    //     // for (size_t j = 0; j < dim_theta; ++j)
+    //     // {
+    //     //     // f_j[j]= state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j];
+    //     //     // sum_log_fits += log(f_j[j]);
+    //     //     log_f[j]= log(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j]);
+    //     //     // if (log_f[j] > max_logf) {max_logf = log_f[j];}
             
-        }
+    //     // }
 
-        // loglike_weight
-        y_i = (*state->y_std)[i];
-        for (size_t j = 0; j < weight_std.size(); ++j)
+    //     // loglike_weight
+    //     // y_i = (*state->y_std)[i];
+       
+
+    //     for (size_t j = 0; j < weight_std.size(); ++j)
+    //     {
+    //         loglike_weight[j] += loglike_x(state, x_struct, tree_ind, i, weight_std[j]);
+    //         // sum_log_fits = 0;
+    //         // for (size_t k = 0; k < dim_residual; k++)
+    //         // {
+    //         //     sum_log_fits += exp(weight_std[j] * (log_f[k]));
+    //         //     // cout << "f_" << k << "(x_" << i << ") = " << log_f[k] << " weight = " << weight_std[j] <<  " exp(weight_std[j] * (log_f[k]))" << exp(weight_std[j] * (log_f[k])) << endl;
+    //         // }
+
+    //         // loglike_weight[j] += weight_std[j] * (log_f[y_i]) - log(sum_log_fits);
+
+    //         for (size_t k = 0; k < state->num_trees; k++)
+    //         {
+    //             for (size_t l = 0; l < dim_residual; l++)
+    //             {
+    //                 log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
+    //             }
+    //         }
+
+    //     }
+    // }
+    // rewrite loglike_weight calculation
+    for (size_t j = 0; j < weight_std.size(); j++)
+    {
+        #pragma omp task shared(loglike_weight, j, state, x_struct, tree_ind, weight_std, dim_residual, log_lambda_prior)
         {
-            sum_log_fits = 0;
-            for (size_t k = 0; k < dim_residual; k++)
+            for (size_t i = 0; i < state->residual_std[0].size(); i++)
             {
-                sum_log_fits += exp(weight_std[j] * (log_f[k]));
-                // cout << "f_" << k << "(x_" << i << ") = " << log_f[k] << " weight = " << weight_std[j] <<  " exp(weight_std[j] * (log_f[k]))" << exp(weight_std[j] * (log_f[k])) << endl;
-            }
+                loglike_weight[j] += loglike_x(state, x_struct, tree_ind, i, weight_std[j]);
 
-            loglike_weight[j] += weight_std[j] * (log_f[y_i]) - log(sum_log_fits);
-
-            for (size_t k = 0; k < state->num_trees; k++)
-            {
-                for (size_t l = 0; l < dim_residual; l++)
+                for (size_t k = 0; k < state->num_trees; k++)
                 {
-                    log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
+                    for (size_t l = 0; l < dim_residual; l++)
+                    {
+                        log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
+                    }
                 }
             }
 
         }
     }
+    #pragma omp taskwait
+
     
 
     // Draw weight
@@ -371,14 +396,14 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     for (size_t i = 0; i < state->residual_std[0].size(); i++){
         for (size_t j = 0; j < dim_theta; ++j)
         {
-            fits_w[j]= pow(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j], weight);
-            if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
+            fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j], weight);
+            // if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
         }
         // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
         temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
         (*phi)[i] = temp;
         if (isinf(temp)) {
-            // cout << "sum(fits_w) = " << accumulate(fits_w.begin(), fits_w.end(), 0.0)  << endl;
+            cout << "current weight " << weight << endl;
             terminate();
         }
     }
