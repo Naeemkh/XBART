@@ -451,6 +451,11 @@ private:
         return ret;
     }
 
+    double log_dlambda(const double lambda, const double w) const
+    {
+        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) - tau_b * pow(lambda, w);
+    }
+
     // void LogitSamplePars(vector<double> &suffstats, double &tau_a, double &tau_b, std::mt19937 &generator, std::vector<double> &theta_vector)
     // {
     //     //redefine these to use prior pars from Model class

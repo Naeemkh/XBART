@@ -236,7 +236,7 @@ void LogitModel::incSuffStat(matrix<double> &residual_std, size_t index_next_obs
 
     // sufficient statistics have 2 * num_classes
 
-    suffstats[(*y_size_t)[index_next_obs]] += weight;
+    suffstats[(*y_size_t)[index_next_obs]] += 1; //weight;
 
 
     for (size_t j = 0; j < dim_theta; ++j)
@@ -247,6 +247,7 @@ void LogitModel::incSuffStat(matrix<double> &residual_std, size_t index_next_obs
 
         // psi * f
         suffstats[dim_theta + j] += (*phi)[index_next_obs] * residual_std[j][index_next_obs];
+        // if (isnan(suffstats[dim_theta + j])) {cout << "phi = " << (*phi)[index_next_obs] << "; resid = " << residual_std[j][index_next_obs] << "; j = " << j << endl; }
     }
 
     return;
@@ -260,6 +261,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
     // double r;
     // double s;
+    double temp;
 
     for (size_t j = 0; j < dim_theta; j++)
     {
@@ -268,9 +270,14 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 
         // !! devide s by min_sum_fits
         // theta_vector[j] = gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]/min_fits);
-        theta_vector[j] = pow( gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]) , 1/weight) ;
+        temp =  gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]);
+        theta_vector[j] = pow( temp, 1/weight) ;
+        // if (isnan(theta_vector[j]) & !isnan(weight)){
+        //     cout << "temp = " << temp << "; weight = " << weight << endl;
+        //     cout << "r = " << suff_stat[j] << "; s = " << suff_stat[dim_theta + j] << endl;
+        // }
     }
-    // cout << "theta_vector" << theta_vector << endl;
+    // cout << "weight " << weight  << " theta_vector" << theta_vector << endl;
 
     return;
 }
@@ -280,80 +287,100 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
     std::feclearexcept(FE_OVERFLOW);
     std::feclearexcept(FE_UNDERFLOW);
 
-    // Draw phi
-
     double sum_fits = 0;
     double loglike_pi = 0;
     size_t y_i;
     double sum_log_fits;
     
 
-    std::gamma_distribution<double> gammadist(weight, 1.0);
+    std::gamma_distribution<double> gammadist(1.0, 1.0);
 
     min_fits = INFINITY;
     double max_loglike_weight = -INFINITY;
-
-    std::vector<double> f_j(dim_residual, 0.0);
+    // double max_logf = -INFINITY;
+    std::vector<double> log_f(dim_residual, 0.0);
     // std::vector<double> sum_fits_v (state->residual_std[0].size(), 0.0);
     std::vector<double> sum_fits_weight(weight_std.size(), 0.0);
     std::vector<double> loglike_weight(weight_std.size(), 0.0);
     std::vector<double> fits_w(dim_residual, 0.0);
     
+    std::vector<double> log_lambda_prior(weight_std.size(), 0.0);
 
-
+    #pragma omp parallel for
     for (size_t i = 0; i < state->residual_std[0].size(); i++)
     {
         sum_fits = 0;
         sum_log_fits = 0;
+        // max_logf = -INFINITY;
         // std::fill(sum_fits_w.begin(), sum_fits_w.end(), 0.0);
         for (size_t j = 0; j < dim_theta; ++j)
         {
-            f_j[j]= state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j];
-            sum_log_fits += log(f_j[j]);
+            // f_j[j]= state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j];
+            // sum_log_fits += log(f_j[j]);
+            log_f[j]= log(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j]);
+            // if (log_f[j] > max_logf) {max_logf = log_f[j];}
+            
         }
 
         // loglike_weight
-        for (size_t j = 0; j < weight_std.size(); j++)
+        y_i = (*state->y_std)[i];
+        for (size_t j = 0; j < weight_std.size(); ++j)
         {
-            for (size_t k = 0; k < dim_residual; k++ )
+            sum_log_fits = 0;
+            for (size_t k = 0; k < dim_residual; k++)
             {
-                fits_w[k] = pow(f_j[k], weight_std[j]);
+                sum_log_fits += exp(weight_std[j] * (log_f[k]));
+                // cout << "f_" << k << "(x_" << i << ") = " << log_f[k] << " weight = " << weight_std[j] <<  " exp(weight_std[j] * (log_f[k]))" << exp(weight_std[j] * (log_f[k])) << endl;
             }
-            loglike_weight[j] += weight_std[j] * sum_log_fits - log( accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+
+            loglike_weight[j] += weight_std[j] * (log_f[y_i]) - log(sum_log_fits);
+
+            for (size_t k = 0; k < state->num_trees; k++)
+            {
+                for (size_t l = 0; l < dim_residual; l++)
+                {
+                    log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
+                }
+            }
+
         }
-
-        // if (sum_fits < min_fits) {min_fits = sum_fits;}
-        // sum_fits_v[i] = sum_fits;
-
-        // y_i = (*state->y_std)[i];
-        // loglike_pi += log(state->residual_std[y_i][i]) + log((*(x_struct->data_pointers[tree_ind][i]))[y_i]) - log(sum_fits);
     }
-
+    
 
     // Draw weight
+
     for (size_t i = 0; i < weight_std.size(); i++)
     {
         // loglike_weight[i] = weight_std[i] * loglike_pi + lgamma(weight_std[i] * n + 1) - lgamma(n + 1) - lgamma((weight_std[i] - 1) * n + 1);
         // loglike_weight[i] = weight_std[i] * loglike_pi - loglike_weight[i];
-        if (loglike_weight[i] > max_loglike_weight){max_loglike_weight = loglike_weight[i];}
+        if (loglike_weight[i] + log_lambda_prior[i] > max_loglike_weight){max_loglike_weight = loglike_weight[i] + log_lambda_prior[i];}
     }
     for (size_t i = 0; i < weight_std.size(); i++)
     {
-        loglike_weight[i] = exp(loglike_weight[i] - max_loglike_weight);
+        loglike_weight[i] = exp(loglike_weight[i]  + log_lambda_prior[i] - max_loglike_weight);
     }
-    // cout << "weight likelihood " << loglike_weight << endl;
+    // cout << "loglike_weight " << loglike_weight <<endl;
+    
     std::discrete_distribution<> d(loglike_weight.begin(), loglike_weight.end());
     weight = weight_std[d(state->gen)];
+    // cout << "weight " << weight << endl;
 
 
     // Draw phi
+    double temp;
     for (size_t i = 0; i < state->residual_std[0].size(); i++){
         for (size_t j = 0; j < dim_theta; ++j)
         {
             fits_w[j]= pow(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j], weight);
+            // if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
         }
         // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
-        (*phi)[i] = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+        (*phi)[i] = temp;
+        if (isinf(temp)) {
+            // cout << "sum(fits_w) = " << accumulate(fits_w.begin(), fits_w.end(), 0.0)  << endl;
+            terminate();
+        }
     }
 
 
@@ -410,10 +437,23 @@ void LogitModel::calculateOtherSideSuffStat(std::vector<double> &parent_suff_sta
     if (compute_left_side)
     {
         rchild_suff_stat = parent_suff_stat - lchild_suff_stat;
+        // this is a wired bug. Should look into it in the future.
+        for (size_t j = 0; j < rchild_suff_stat.size() ; j++)
+        {
+            rchild_suff_stat[j] = rchild_suff_stat[j] > 0 ? rchild_suff_stat[j] : 0;
+            // if (isnan(rchild_suff_stat[j])) {cout <<"j = " << j <<  "; parent_suff_stat = " << parent_suff_stat[j] << "; lchild_suff_stat = " << lchild_suff_stat[j]<< "; rchild_suff_stat = " << rchild_suff_stat[j]  << endl;}
+            
+        }
     }
     else
     {
         lchild_suff_stat = parent_suff_stat - rchild_suff_stat;
+        for (size_t j = 0; j < rchild_suff_stat.size() ; j++)
+        {
+            lchild_suff_stat[j] = lchild_suff_stat[j] > 0 ? lchild_suff_stat[j] : 0;
+            // if (isnan(lchild_suff_stat[j])) { cout <<"j = " << j <<  "; parent_suff_stat = " << parent_suff_stat[j] << "; rchild_suff_stat = " << rchild_suff_stat[j]<< "; lchild_suff_stat = " << lchild_suff_stat[j]  << endl;}
+            
+        }
     }
     return;
 }
