@@ -372,7 +372,7 @@ void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, st
         for (size_t j = 0; j < dim_theta; ++j)
         {
             fits_w[j]= pow(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j], weight);
-            // if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
+            if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
         }
         // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
         temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
