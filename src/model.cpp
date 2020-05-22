@@ -246,7 +246,7 @@ void LogitModel::incSuffStat(matrix<double> &residual_std, size_t index_next_obs
             // suffstats[j] += 1;
 
         // psi * f
-        suffstats[dim_theta + j] += (*phi)[index_next_obs] * residual_std[j][index_next_obs];
+        suffstats[dim_theta + j] += (*phi)[index_next_obs] * pow(residual_std[j][index_next_obs], weight);
         // if (isnan(suffstats[dim_theta + j])) {cout << "phi = " << (*phi)[index_next_obs] << "; resid = " << residual_std[j][index_next_obs] << "; j = " << j << endl; }
     }
 
