@@ -23,6 +23,8 @@ public:
 
     size_t dim_residual;
 
+    size_t class_operating;
+
     /////////////////////////////////////
     //
     //  suff_stat_model and suff_stat_total
@@ -51,7 +53,15 @@ public:
     // Abstract functions
     virtual void incSuffStat(matrix<double> &residual_std, size_t index_next_obs, std::vector<double> &suffstats) { return; };
 
-    virtual void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf) { return; };
+    virtual void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf, const size_t &tree_ind) { return; };
+
+    virtual size_t get_class_operating() { return class_operating; };
+
+    virtual void set_class_operating(size_t i)
+    {
+        class_operating = i;
+        return;
+    };
 
     virtual void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct) { return; };
 
@@ -107,6 +117,8 @@ public:
     // prior on leaf parameter
     double tau;
 
+    size_t class_operating;
+
     NormalModel(double kap, double s, double tau, double alpha, double beta) : Model(1, 3)
     {
         this->kap = kap;
@@ -115,6 +127,7 @@ public:
         this->alpha = alpha;
         this->beta = beta;
         this->dim_residual = 1;
+        this->class_operating = 0;
     }
 
     NormalModel() : Model(1, 3) {}
@@ -123,7 +136,7 @@ public:
 
     void incSuffStat(matrix<double> &residual_std, size_t index_next_obs, std::vector<double> &suffstats);
 
-    void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf);
+    void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf, const size_t &tree_ind);
 
     void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct);
 
@@ -217,7 +230,7 @@ public:
         return;
     }
     void incrementSuffStat() const { return; };
-    void samplePars(double y_mean, size_t N_Xorder, double sigma, std::mt19937 &generator, std::vector<double> &theta_vector, std::vector<double> &y_std, matrix<size_t> &Xorder, double &prob_leaf)
+    void samplePars(double y_mean, size_t N_Xorder, double sigma, std::mt19937 &generator, std::vector<double> &theta_vector, std::vector<double> &y_std, matrix<size_t> &Xorder, double &prob_leaf, const size_t &tree_ind)
     {
         // Update params
         updateFullSuffStat(y_std, Xorder[0]);
@@ -445,15 +458,15 @@ private:
         for (size_t j = 0; j < c; j++)
         {
             //!! devide s by min_sum_fits
-            // ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j] / min_fits) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
-            ret += -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) - log(weight) + lgamma(tau_a + suffstats[j] + 1/weight);
+            // ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
+            ret += -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
         }
         return ret;
     }
 
     double log_dlambda(const double &lambda, const double &w) const
     {
-        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) - tau_b * pow(lambda, w);
+        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w /weight * log(lambda) - tau_b * pow(lambda, w / weight);
     }
 
     double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
@@ -463,11 +476,10 @@ private:
 
         for (size_t j = 0; j < dim_residual; j++)
         {   
-            f_j = state->residual_std[j][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[j];
-            sum_fits += pow(f_j, w); 
+            sum_fits += state->residual_std[j][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[j];
         }
 
-        return w * log(state->residual_std[(*state->y_std)[ind]][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[(*state->y_std)[ind]]) - log(sum_fits);
+        return w / weight * log(state->residual_std[(*state->y_std)[ind]][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[(*state->y_std)[ind]]) - log(sum_fits);
     }
 
     // void LogitSamplePars(vector<double> &suffstats, double &tau_a, double &tau_b, std::mt19937 &generator, std::vector<double> &theta_vector)
@@ -523,7 +535,7 @@ public:
 
     void incSuffStat(matrix<double> &residual_std, size_t index_next_obs, std::vector<double> &suffstats);
 
-    void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf);
+    void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf, const size_t &tree_ind);
 
     void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct);
 
@@ -547,6 +559,69 @@ public:
 };
 
 
+class LogitModelSeparateTrees : public LogitModel
+{
+private: 
+    double LogitLIL(const vector<double> &suffstats) const
+    {   
+        return  -(tau_a + suffstats[class_operating] + 1/weight) * log(tau_b + suffstats[dim_residual + class_operating]) + lgamma(tau_a + suffstats[class_operating] + 1/weight) - log(weight);
+    }
+
+    double log_dlambda(const double &lambda, const double &w) const
+    {
+        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) / weight - tau_b * pow(lambda, w/weight);
+    }
+
+    double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
+    { 
+        double f_j;
+        double sum_fits = 0.0;
+        size_t j = (*state->y_std)[ind];
+
+        for (size_t j = 0; j < dim_residual; j++)
+        {   
+            f_j = state->residual_std[j][ind] * (*(x_struct->data_pointers_multinomial[j][tree_ind][ind]))[j];
+            sum_fits += pow(f_j, w / weight); 
+        }
+
+        return w / weight * log(state->residual_std[j][ind] * (*(x_struct->data_pointers_multinomial[j][tree_ind][ind]))[j]) - log(sum_fits);
+    }
+
+public:
+
+
+    LogitModelSeparateTrees(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> weight_std) : LogitModel(num_classes, tau_a, tau_b, alpha, beta, y_size_t, phi, weight_std) {}
+
+    // LogitModelSeparateTrees() : LogitModel() {}
+
+    Model *clone() { return new LogitModelSeparateTrees(*this); }
+
+    void incSuffStat(matrix<double> &residual_std, size_t index_next_obs, std::vector<double> &suffstats);
+
+    void samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf, const size_t &tree_ind);
+
+    void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct);
+
+    // void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
+
+    void updateNodeSuffStat(std::vector<double> &suff_stat, matrix<double> &residual_std, matrix<size_t> &Xorder_std, size_t &split_var, size_t row_ind);
+
+    void calculateOtherSideSuffStat(std::vector<double> &parent_suff_stat, std::vector<double> &lchild_suff_stat, std::vector<double> &rchild_suff_stat, size_t &N_parent, size_t &N_left, size_t &N_right, bool &compute_left_side);
+
+    void state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct) const;
+
+    double likelihood(std::vector<double> &temp_suff_stat, std::vector<double> &suff_stat_all, size_t N_left, bool left_side, bool no_split, std::unique_ptr<State> &state) const;
+
+    // double likelihood_no_split(std::vector<double> &suff_stat, std::unique_ptr<State> &state) const;
+
+    void ini_residual_std(std::unique_ptr<State> &state);
+
+    void predict_std(const double *Xtestpointer, size_t N_test, size_t p, size_t num_trees, size_t num_sweeps, matrix<double> &yhats_test_xinfo, vector<vector<vector<tree>>> &trees, std::vector<double> &output_vec);
+
+    void predict_std_standalone(const double *Xtestpointer, size_t N_test, size_t p, size_t num_trees, size_t num_sweeps, matrix<double> &yhats_test_xinfo, vector<vector<vector<tree>>> &trees, std::vector<double> &output_vec, std::vector<size_t>& iteration, double weight);
+
+
+};
 
 
 
