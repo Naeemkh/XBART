@@ -9,6 +9,7 @@
 #include "X_struct.h"
 #include "cdf.h"
 #include "LILParams.h"
+#include "gsl/gsl_integration.h"
 
 using namespace std;
 
@@ -437,24 +438,36 @@ public:
 class LogitModel : public Model
 {
 private:
-    //size_t dim_suffstat = 0; // = 2*dim_theta;
-    //std::vector<double> suff_stat_total;
 
     double LogitLIL(const vector<double> &suffstats) const
     {
 
         size_t c = suffstats.size() / 2;
-        
-        double ret = 0;
-        
-        
+
+        lparams->set_w(weight);
+        std::vector<double> int_vec(c);
+        std::vector<double> error(c);
+
+        gsl_function F;
+        F.function = &LILkernel;
+        // F.params = &lparams;
+        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(6000);
+       
         for (size_t j = 0; j < c; j++)
         {
-            //!! devide s by min_sum_fits
-            // ret += -(tau_a + suffstats[j] ) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j]);// - lgamma(suffstats[j] +1);
-            ret += -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+            
+            lparams->set_r(suffstats[j]);
+            lparams->set_s(suffstats[c + j]);
+            F.params = lparams;
+            lparams->print();
+
+            // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
+            gsl_integration_qagiu(&F, 0, 0, 1e-3, 5000, workspace, &int_vec[j], &error[j]);
         }
-        return ret;
+
+        gsl_integration_workspace_free(workspace);
+        return std::accumulate(int_vec.begin(), int_vec.end(), 1, std::multiplies<int>());
+
     }
 
     double log_dlambda(const double &lambda, const double &w) const
@@ -505,7 +518,7 @@ public:
 
     double min_fits;
 
-    LILParams lparams = LILParams();
+    LILParams *lparams = new LILParams();
 
     LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> weight_std) : Model(num_classes, 2*num_classes)
     {
@@ -520,7 +533,7 @@ public:
         this->weight = weight_std[0];
         this->weight_std = weight_std;
         this->min_fits = 1.0;
-        this->lparams.set_params(tau_a, tau_b, this->weight, 0.0, 0.0);
+        this->lparams->set_params(tau_a, tau_b, this->weight, 0.0, 0.0);
 
     }
 
@@ -557,9 +570,29 @@ public:
 class LogitModelSeparateTrees : public LogitModel
 {
 private: 
+
     double LogitLIL(const vector<double> &suffstats) const
     {   
-        return  -(tau_a + suffstats[class_operating] + 1/weight) * log(tau_b + suffstats[dim_residual + class_operating]) + lgamma(tau_a + suffstats[class_operating] + 1/weight) - log(weight);
+        size_t c = suffstats.size() / 2;
+        size_t j = class_operating;
+        double output, error;
+
+        lparams->set_w(weight);
+        lparams->set_r(suffstats[j]);
+        lparams->set_s(suffstats[c + j]);
+        lparams->print();
+
+        gsl_function F;
+        F.function = &LILkernel;
+        F.params = lparams;
+        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(6000);
+
+        // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
+        gsl_integration_qagiu(&F, 0, 0, 1e-3, 5000, workspace, &output, &error);
+
+        gsl_integration_workspace_free(workspace);
+        return output;
+
     }
 
     double log_dlambda(const double &lambda, const double &w) const

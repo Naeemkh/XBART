@@ -2,6 +2,7 @@
 #define GUARD_utility_h
 
 #include "common.h"
+#include "LILParams.h"
 
 // #include "thread_pool.h"
 // extern ThreadPool thread_pool;
@@ -143,5 +144,7 @@ double normal_density(double y, double mean, double var, bool take_log);
 bool is_non_zero(size_t x);
 
 size_t count_non_zero(std::vector<double> &vec);
+
+double LILkernel(double x, void * params);
 
 #endif

@@ -244,3 +244,11 @@ size_t count_non_zero(std::vector<double> &vec)
     }
     return output;
 }
+
+    double LILkernel(double x, void * params)
+	{   
+        LILParams p = * (LILParams *) params;
+
+		// return pow(x, p.w * p.r + p.tau_a) * exp(- p.s * pow(x, p.w) - p.tau_b * x);
+        return exp( (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x );
+    }
