@@ -629,7 +629,7 @@ private:
             else if (status)
             {
                 lparams->print();
-                fprintf (stderr, "failed, gsl_errno=%d\n", status);
+                fprintf (stderr, "integration failed, gsl_errno=%d\n", status);
                 return -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
         
             }

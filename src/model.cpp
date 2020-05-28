@@ -892,6 +892,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
 
     double theta, u;
     bool accept = false;
+    size_t count_reject = 0;
     while(!accept)
     {
         theta = rlnorm(state->gen);
@@ -901,10 +902,21 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
         {
             accept = true;
+            break;
         }
-    }
+        count_reject += 1;
+        if (count_reject > 50)
+        {
+            cout << "warning: reject sampling after 50 iterations" << endl;
+            lparams->print();
+            cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << logk << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
 
-    theta_vector[class_operating] = theta;
+            std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
+            theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            accept = true;
+    }
+                
+
     }
  
     return;

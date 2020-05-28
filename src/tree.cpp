@@ -906,11 +906,15 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
     this->N = N_Xorder;
 
     // tau is prior VARIANCE, do not take squares
-    // cout << "update_theta" << endl;
+    
     if (update_theta)
     {
+        // cout << "update_theta" << endl;
         model->samplePars(state, this->suff_stat, this->theta_vector, this->prob_leaf, tree_ind);
+        // cout << "finish update_theta" << endl;
+        // cout << "calculate entropy" << endl;
         calculate_entropy(Xorder_std, state, this); 
+        // cout << "finish calculate entropy" << endl;
         // cout << "entropy = " << this->entropy << "    threhold = " << entropy_threshold * N_Xorder << endl;
         if (this->entropy < entropy_threshold * N_Xorder) {
             #pragma omp critical 
@@ -918,7 +922,7 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
             return;
         }
     }
-    // cout << "finish update_theta" << endl;
+    
 
     if (N_Xorder <= state->n_min)
     {
