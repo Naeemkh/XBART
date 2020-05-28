@@ -838,85 +838,85 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
     else
     {
         count_new += 1;
-    LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suff_stat[class_operating], suff_stat[dim_residual + class_operating]);
+        LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suff_stat[class_operating], suff_stat[dim_residual + class_operating]);
 
-    double mx;
-    std::pair<double, double> range(0.0, 5.0);
-    std::pair<double, double> mx_bisect;
-    boost::math::tools::eps_tolerance<double> tol(1e-6);
-    while (true)
-    {
-        try
+        double mx;
+        std::pair<double, double> range(0.0, 5.0);
+        std::pair<double, double> mx_bisect;
+        boost::math::tools::eps_tolerance<double> tol(1e-6);
+        while (true)
         {
-            mx_bisect = boost::math::tools::bisect(boost::bind(&derive_logit_kernel, _1, lparams), range.first, range.second, tol);
-            mx = (mx_bisect.first + mx_bisect.second) / 2;
-            break;
-        }
-        catch(const std::exception& e)
-        {
-            if (range.second <= 30)
+            try
             {
-                // lparams->print();
-                // cout << "can't find root in (" << range.first << ", " << range.second << ")" << endl;
-                range.first += 5;
-                range.second += 5;
+                mx_bisect = boost::math::tools::bisect(boost::bind(&derive_logit_kernel, _1, lparams), range.first, range.second, tol);
+                mx = (mx_bisect.first + mx_bisect.second) / 2;
+                break;
             }
-            else
+            catch(const std::exception& e)
             {
-                std::cerr << e.what() << '\n';
-                cout << "can't find root up to 30" << endl;
-                size_t j = class_operating;
-    
-                std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+                if (range.second <= 30)
+                {
+                    // lparams->print();
+                    // cout << "can't find root in (" << range.first << ", " << range.second << ")" << endl;
+                    range.first += 5;
+                    range.second += 5;
+                }
+                else
+                {
+                    std::cerr << e.what() << '\n';
+                    cout << "can't find root up to 30" << endl;
+                    size_t j = class_operating;
+        
+                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
-                theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
-                return;
-            }
-            
-
-        }   
-    }
-    
-
-    double logk = likelihood(suff_stat, suff_stat, 1, false, true, state);
-
-    double mval = LogitKernel(mx, lparams) / exp(logk);
-
-    // cout << "f(mx) = " << LogitKernel(mx, lparams) << "; mx = " << mx << " k = " << k << "; log(k) = " << log(k) << endl;
-
-    boost::math::lognormal_distribution<double> dlnorm(log(mx), sqrt(0.05));
-    std::lognormal_distribution<double> rlnorm(log(mx), sqrt(0.05));
-    std::uniform_real_distribution<double> runif(0.0,1.0);
-
-    double M = 1.05 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
-
-    double theta, u;
-    bool accept = false;
-    size_t count_reject = 0;
-    while(!accept)
-    {
-        theta = rlnorm(state->gen);
-        u = runif(state->gen);
-        // cout << "theta = " << theta << "; u = " << u << ";" << endl;
-        // cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(k) << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
-        if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
-        {
-            accept = true;
-            break;
-        }
-        count_reject += 1;
-        if (count_reject > 50)
-        {
-            cout << "warning: reject sampling after 50 iterations" << endl;
-            lparams->print();
-            cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << logk << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
-
-            std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
-            theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
-            accept = true;
-    }
+                    theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+                    return;
+                }
                 
 
+            }   
+        }
+    
+        double logk = likelihood(suff_stat, suff_stat, 1, false, true, state);
+
+        double mval = LogitKernel(mx, lparams) / exp(logk);
+
+        // cout << "f(mx) = " << LogitKernel(mx, lparams) << "; mx = " << mx << " k = " << k << "; log(k) = " << log(k) << endl;
+
+        boost::math::lognormal_distribution<double> dlnorm(log(mx), sqrt(0.05));
+        std::lognormal_distribution<double> rlnorm(log(mx), sqrt(0.05));
+        std::uniform_real_distribution<double> runif(0.0,1.0);
+
+        double M = 1.05 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
+
+        double theta, u;
+        bool accept = false;
+        size_t count_reject = 0;
+        while(!accept)
+        {
+            theta = rlnorm(state->gen);
+            u = runif(state->gen);
+            // cout << "theta = " << theta << "; u = " << u << ";" << endl;
+            // cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(k) << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
+            if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
+            {
+                accept = true;
+                break;
+            }
+            count_reject += 1;
+            if (count_reject > 50)
+            {
+                cout << "warning: reject sampling after 50 iterations" << endl;
+                lparams->print();
+                cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << logk << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
+
+                std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
+                theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
+                accept = true;
+            }
+                    
+
+        }
     }
  
     return;
