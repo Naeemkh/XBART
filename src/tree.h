@@ -47,6 +47,8 @@ public:
 
     std::vector<double> suff_stat;
 
+    LogitParams *lparams = new LogitParams();
+
     //typedefs--------------------
     typedef tree *tree_p;
 

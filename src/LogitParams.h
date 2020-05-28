@@ -1,28 +1,19 @@
-#ifndef GUARD_LILParams_h
-#define GUARD_LILParams_h
+#ifndef GUARD_LogitParams_h
+#define GUARD_LogitParams_h
 #include "common.h"
 
 using namespace std;
 
 
-struct LILParams{
+struct LogitParams{
 
 
 public:
     double tau_a, tau_b, w, r, s;
 
-    LILParams(): tau_a(1.0), tau_b(1.0), w(1), r(0.0), s(0.0) {}
+    LogitParams(): tau_a(1.0), tau_b(1.0), w(1), r(0.0), s(0.0) {}
 
-    LILParams(double tau_a, double tau_b, double w, double suff_r, double suff_s): tau_a(tau_a), tau_b(tau_b), w(w), r(suff_r), s(suff_s) {}
-    // LILParams(double tau_a, double tau_b, double w, double suff_r, double suff_s)
-    // {
-    //     this->tau_a = tau_a;
-    //     this->tau_b = tau_b;
-    //     this-> w = w;
-    //     this-> r = suff_r;
-    //     this-> s = suff_s;
-    //     return;
-    // }
+    LogitParams(double tau_a, double tau_b, double w, double suff_r, double suff_s): tau_a(tau_a), tau_b(tau_b), w(w), r(suff_r), s(suff_s) {}
 
     void print()
     {

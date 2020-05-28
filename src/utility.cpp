@@ -245,10 +245,24 @@ size_t count_non_zero(std::vector<double> &vec)
     return output;
 }
 
-    double LILkernel(double x, void * params)
+    double LogitKernel(double x, void * params)
 	{   
-        LILParams p = * (LILParams *) params;
+        LogitParams p = * (LogitParams *) params;
 
 		// return pow(x, p.w * p.r + p.tau_a) * exp(- p.s * pow(x, p.w) - p.tau_b * x);
         return exp( (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x );
+    }
+
+    double log_logit_kernel(double x, void *params)
+    {
+        LogitParams p = * (LogitParams *) params;
+
+        return (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x;
+    }
+
+    double derive_logit_kernel(double x, void *params)
+    {
+        LogitParams p = * (LogitParams *) params;
+
+        return p.tau_b * x + p.s * p.w * pow(x, p.w) + 1 - p.tau_a - p.r * p.w;
     }

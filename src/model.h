@@ -8,8 +8,9 @@
 #include "state.h"
 #include "X_struct.h"
 #include "cdf.h"
-#include "LILParams.h"
+#include "LogitParams.h"
 #include "gsl/gsl_integration.h"
+#include "gsl/gsl_errno.h"
 
 using namespace std;
 
@@ -444,25 +445,38 @@ private:
 
         size_t c = suffstats.size() / 2;
 
-        lparams->set_w(weight);
+        LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, 0.0, 0.0);
         std::vector<double> int_vec(c);
         std::vector<double> error(c);
 
         gsl_function F;
-        F.function = &LILkernel;
+        F.function = &LogitKernel;
         // F.params = &lparams;
-        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(6000);
+        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
        
         for (size_t j = 0; j < c; j++)
         {
-            
-            lparams->set_r(suffstats[j]);
-            lparams->set_s(suffstats[c + j]);
-            F.params = lparams;
-            lparams->print();
+            if (weight == 1 | suffstats[c + j] > tau_b + 500)
+            {
+                int_vec[j] =  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+            }
+            else
+            {
+                lparams->set_r(suffstats[j]);
+                lparams->set_s(suffstats[c + j]);
+                F.params = lparams;
 
-            // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-            gsl_integration_qagiu(&F, 0, 0, 1e-3, 5000, workspace, &int_vec[j], &error[j]);
+                gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &int_vec[j], &error[j]); 
+                // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
+
+                if (int_vec[j] == 0)
+                {
+                    cout << "warning: integration = 0, error =  " << error[j]  << endl;
+                    lparams->print();
+                    int_vec[j] =  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+                }
+            }
+    
         }
 
         gsl_integration_workspace_free(workspace);
@@ -470,10 +484,10 @@ private:
 
     }
 
-    double log_dlambda(const double &lambda, const double &w) const
-    {
-        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w /weight * log(lambda) - tau_b * pow(lambda, w / weight);
-    }
+    // double log_dlambda(const double &lambda, const double &w) const
+    // {
+    //     return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w /weight * log(lambda) - tau_b * pow(lambda, w / weight);
+    // }
 
     double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
     { 
@@ -482,10 +496,10 @@ private:
 
         for (size_t j = 0; j < dim_residual; j++)
         {   
-            sum_fits += state->residual_std[j][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[j];
+            sum_fits += pow(state->residual_std[j][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[j], w);
         }
 
-        return w / weight * log(state->residual_std[(*state->y_std)[ind]][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[(*state->y_std)[ind]]) - log(sum_fits);
+        return w  * log(state->residual_std[(*state->y_std)[ind]][ind] * (*(x_struct->data_pointers[tree_ind][ind]))[(*state->y_std)[ind]]) - log(sum_fits);
     }
 
     // void LogitSamplePars(vector<double> &suffstats, double &tau_a, double &tau_b, std::mt19937 &generator, std::vector<double> &theta_vector)
@@ -518,7 +532,7 @@ public:
 
     double min_fits;
 
-    LILParams *lparams = new LILParams();
+    size_t count_old, count_new;
 
     LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> weight_std) : Model(num_classes, 2*num_classes)
     {
@@ -533,8 +547,9 @@ public:
         this->weight = weight_std[0];
         this->weight_std = weight_std;
         this->min_fits = 1.0;
-        this->lparams->set_params(tau_a, tau_b, this->weight, 0.0, 0.0);
 
+        this->count_old = 0;
+        this->count_new = 0;
     }
 
     LogitModel() : Model(2, 4) {}
@@ -572,33 +587,60 @@ class LogitModelSeparateTrees : public LogitModel
 private: 
 
     double LogitLIL(const vector<double> &suffstats) const
-    {   
+    {    
         size_t c = suffstats.size() / 2;
         size_t j = class_operating;
-        double output, error;
+        LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suffstats[j], suffstats[c + j]);
 
-        lparams->set_w(weight);
-        lparams->set_r(suffstats[j]);
-        lparams->set_s(suffstats[c + j]);
-        lparams->print();
+        if (weight == 1 | suffstats[c + j] > tau_b + 500)
+        {
+            return  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+        }
+        else
+        {
+            double output, error;
 
-        gsl_function F;
-        F.function = &LILkernel;
-        F.params = lparams;
-        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(6000);
+            lparams->set_w(weight);
+            lparams->set_r(suffstats[j]);
+            lparams->set_s(suffstats[c + j]);
+            if (suffstats[c+j] < 0)
+            {
+                cout << "suffstats s[" << j << "] = " <<suffstats[c+j] << endl;
+                terminate(); 
+            }
+            // lparams->print();
 
-        // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-        gsl_integration_qagiu(&F, 0, 0, 1e-3, 5000, workspace, &output, &error);
+            gsl_function F;
+            F.function = &LogitKernel;
+            F.params = lparams;
+                
+            gsl_set_error_handler_off();
+            gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
+            // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
+            int status = gsl_integration_qagiu(&F, 0, 0, 1e-8, 2000, workspace, &output, &error);
+            gsl_integration_workspace_free(workspace);
 
-        gsl_integration_workspace_free(workspace);
-        return output;
-
+            if (output == 0)
+            {
+                lparams->print();
+                cout << "warning: integration = 0, error =  " << error  << endl;
+                return  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+            }
+            else if (status)
+            {
+                lparams->print();
+                fprintf (stderr, "failed, gsl_errno=%d\n", status);
+                return -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+        
+            }
+            else{ return log(output);}
+        }
     }
 
-    double log_dlambda(const double &lambda, const double &w) const
-    {
-        return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) / weight - tau_b * pow(lambda, w/weight);
-    }
+    // double log_dlambda(const double &lambda, const double &w) const
+    // {
+    //     return (tau_a + 1/w) * log(tau_b) + log(w) - lgamma(tau_a + 1/w) + tau_a * w * log(lambda) / weight - tau_b * pow(lambda, w/weight);
+    // }
 
     double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
     { 
@@ -609,10 +651,10 @@ private:
         for (size_t j = 0; j < dim_residual; j++)
         {   
             f_j = state->residual_std[j][ind] * (*(x_struct->data_pointers_multinomial[j][tree_ind][ind]))[j];
-            sum_fits += pow(f_j, w / weight); 
+            sum_fits += pow(f_j, w); 
         }
 
-        return w / weight * log(state->residual_std[j][ind] * (*(x_struct->data_pointers_multinomial[j][tree_ind][ind]))[j]) - log(sum_fits);
+        return w * log(state->residual_std[j][ind] * (*(x_struct->data_pointers_multinomial[j][tree_ind][ind]))[j]) - log(sum_fits);
     }
 
 public:

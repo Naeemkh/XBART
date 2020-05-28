@@ -2,7 +2,7 @@
 #define GUARD_utility_h
 
 #include "common.h"
-#include "LILParams.h"
+#include "LogitParams.h"
 
 // #include "thread_pool.h"
 // extern ThreadPool thread_pool;
@@ -145,6 +145,10 @@ bool is_non_zero(size_t x);
 
 size_t count_non_zero(std::vector<double> &vec);
 
-double LILkernel(double x, void * params);
+double LogitKernel(double x, void * params);
+
+double log_logit_kernel(double x, void *params);
+
+double derive_logit_kernel(double x, void *params);
 
 #endif
