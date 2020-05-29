@@ -826,6 +826,8 @@ void LogitModelSeparateTrees::incSuffStat(matrix<double> &residual_std, size_t i
 void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vector<double> &suff_stat, std::vector<double> &theta_vector, double &prob_leaf, const size_t &tree_ind)
 {
     
+    size_t c = dim_residual;
+    size_t j = class_operating;
     if (weight == 1 | suff_stat[dim_residual + class_operating] > tau_b + 500)
     {
         count_old += 1;
@@ -840,48 +842,46 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         count_new += 1;
         LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suff_stat[class_operating], suff_stat[dim_residual + class_operating]);
 
-        double mx;
-        std::pair<double, double> range(0.0, 5.0);
-        std::pair<double, double> mx_bisect;
-        boost::math::tools::eps_tolerance<double> tol(1e-6);
-        while (true)
+        double mx, output;
+        int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, INFINITY, 1e-6); // status_mx = 1 if can't find root
+        if ( !status_mx) 
+        { 
+            lparams->set_mx(mx);
+            lparams->set_logv(log_logit_kernel(mx, lparams));
+        } // set logv if find root
+        else
         {
-            try
-            {
-                mx_bisect = boost::math::tools::bisect(boost::bind(&derive_logit_kernel, _1, lparams), range.first, range.second, tol);
-                mx = (mx_bisect.first + mx_bisect.second) / 2;
-                break;
-            }
-            catch(const std::exception& e)
-            {
-                if (range.second <= 30)
-                {
-                    // lparams->print();
-                    // cout << "can't find root in (" << range.first << ", " << range.second << ")" << endl;
-                    range.first += 5;
-                    range.second += 5;
-                }
-                else
-                {
-                    std::cerr << e.what() << '\n';
-                    cout << "can't find root up to 30" << endl;
-                    size_t j = class_operating;
-        
-                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
-
-                    theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
-                    return;
-                }
-                
-
-            }   
-        }
+            // need to reconsider, how to sample when we can't find root??
+            size_t j = class_operating;
     
-        double logk = likelihood(suff_stat, suff_stat, 1, false, true, state);
+            std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            return;
+        }
+            
+        int status = get_integration(LogitKernel, lparams, output);
+
+        if (output == 0)
+        {
+            output = -(tau_a + suff_stat[j] + 1/weight) * log(tau_b + suff_stat[c + j]) + lgamma(tau_a + suff_stat[j] + 1/weight) - log(weight);
+        }
+        else if( status)
+        {
+            // lparams->print();
+            cout << "integration failed. output = " << output << "; logv = " << lparams->logv << endl;
+            
+            size_t j = class_operating;
+    
+            std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            return;
+        }
+
+        double logk = log(output) + lparams->logv;
 
         double mval = LogitKernel(mx, lparams) / exp(logk);
-
-        // cout << "f(mx) = " << LogitKernel(mx, lparams) << "; mx = " << mx << " k = " << k << "; log(k) = " << log(k) << endl;
 
         boost::math::lognormal_distribution<double> dlnorm(log(mx), sqrt(0.05));
         std::lognormal_distribution<double> rlnorm(log(mx), sqrt(0.05));
@@ -908,7 +908,8 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             {
                 cout << "warning: reject sampling after 50 iterations" << endl;
                 lparams->print();
-                cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << logk << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
+                // cout << "theta = " << theta << "; u = " << u <<  "; criteria = " << exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)) << endl;
+                // cout << "logf(theta) = " << log_logit_kernel(theta, lparams)  << "; logk = " <<  logk << "; dlnorm = " << log(pdf(dlnorm, theta))  << "; log(M) = " << log(M) << endl;
 
                 std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
                 theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
@@ -999,7 +1000,11 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
         (*phi)[i] = temp;
         if (isinf(temp)) {
             cout << "current weight " << weight << endl;
-            cout << "fits_w " << fits_w << endl;
+            for (size_t j = 0; j < dim_theta; ++j)
+            {
+                fits_w[j] = state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j];
+            }
+            cout << "fits " << fits_w << endl;
             terminate();
         }
     }

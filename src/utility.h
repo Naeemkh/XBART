@@ -151,4 +151,8 @@ double log_logit_kernel(double x, void *params);
 
 double derive_logit_kernel(double x, void *params);
 
+int get_root(double (*kernel)(double x, void *params), void *params, double &mx, double const &by, double const &limit, double const &tol);
+
+int get_integration(double (*kernel)(double x, void *params), void *params, double &output);
+
 #endif

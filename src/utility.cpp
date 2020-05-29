@@ -1,4 +1,9 @@
 #include "utility.h"
+#include "gsl/gsl_integration.h"
+#include "gsl/gsl_errno.h"
+#include <boost/math/tools/roots.hpp>
+#include <boost/math/distributions/lognormal.hpp>
+#include <boost/bind.hpp>
 
 // ThreadPool thread_pool;
 // 
@@ -249,8 +254,8 @@ size_t count_non_zero(std::vector<double> &vec)
 	{   
         LogitParams p = * (LogitParams *) params;
 
-		// return pow(x, p.w * p.r + p.tau_a) * exp(- p.s * pow(x, p.w) - p.tau_b * x);
-        return exp( (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x );
+        return exp( (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x - p.logv);
+        // return exp( (p.w * p.r + p.tau_a) * log(x / p.mx) - p.s *  (pow(x, p.w) - pow(p.mx, p.w)) - p.tau_b * (x - p.mx) );
     }
 
     double log_logit_kernel(double x, void *params)
@@ -265,4 +270,64 @@ size_t count_non_zero(std::vector<double> &vec)
         LogitParams p = * (LogitParams *) params;
 
         return p.tau_b * x + p.s * p.w * pow(x, p.w) + 1 - p.tau_a - p.r * p.w;
+    }
+
+
+    struct TerminationCondition  {
+        bool operator() (double min, double max)  {
+        return abs(min - max) <= 0.000001;
+        }
+    };
+
+    int get_root(double (*kernel)(double x, void *params), void *params, double &mx, double const &by, double const &limit, double const &tol)
+    {
+        std::pair<double, double> range(0.0, by);
+        std::pair<double, double> mx_bisect;
+        // boost::math::tools::eps_tolerance<double> eps_tol(tol);
+        while (range.second <= limit)
+        {
+            try
+            {
+                mx_bisect = boost::math::tools::bisect(boost::bind(kernel, _1, params), range.first, range.second, TerminationCondition());
+                // cout << "mx_bisect (" << mx_bisect.first << ", " << mx_bisect.second << endl;
+                mx = (mx_bisect.first + mx_bisect.second) / 2;
+                return 0;
+            }
+            catch(const std::exception& e)
+            {
+                    range.first += by;
+                    range.second += by;
+            }   
+        }
+        // std::cerr << e.what() << '\n';
+        // cout << "can't find root up to " << limit << endl;
+        return 1;
+
+    }
+
+    int get_integration(double (*kernel)(double x, void *params), void *params, double &output)
+    {
+        
+        gsl_function F;
+        F.function = kernel;
+        F.params = params;
+        double error;
+
+        gsl_set_error_handler_off();
+        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
+        // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
+        int status = gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &output, &error);
+        gsl_integration_workspace_free(workspace);
+
+        // if(take_log)
+        // {
+        //     output = log(output) + logv;
+        // }
+        // else
+        // {
+        //     output = exp(logv) * output;
+        // }
+        
+        return status;
+            
     }
