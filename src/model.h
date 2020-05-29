@@ -613,7 +613,7 @@ private:
             // int status = gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &output, &error);
             // gsl_integration_workspace_free(workspace);
             double mx, output;
-            int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, INFINITY, 1e-6); // status_mx = 1 if can't find root
+            int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 1000, 1e-6); // status_mx = 1 if can't find root
             if ( !status_mx) 
             { 
                 lparams->set_mx(mx);
@@ -635,8 +635,8 @@ private:
             }
             else if (status)
             {
-                lparams->print();
-                fprintf (stderr, "integration failed, gsl_errno=%d\n", status);
+                // lparams->print();
+                // fprintf (stderr, "integration failed, gsl_errno=%d\n", status);
                 return -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
         
             }

@@ -253,7 +253,6 @@ size_t count_non_zero(std::vector<double> &vec)
     double LogitKernel(double x, void * params)
 	{   
         LogitParams p = * (LogitParams *) params;
-
         return exp( (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x - p.logv);
         // return exp( (p.w * p.r + p.tau_a) * log(x / p.mx) - p.s *  (pow(x, p.w) - pow(p.mx, p.w)) - p.tau_b * (x - p.mx) );
     }
@@ -291,6 +290,8 @@ size_t count_non_zero(std::vector<double> &vec)
                 mx_bisect = boost::math::tools::bisect(boost::bind(kernel, _1, params), range.first, range.second, TerminationCondition());
                 // cout << "mx_bisect (" << mx_bisect.first << ", " << mx_bisect.second << endl;
                 mx = (mx_bisect.first + mx_bisect.second) / 2;
+                if (mx == 0)
+                {cout << "mx = 0, mx_bisect (" << mx_bisect.first << ", " << mx_bisect.second << ")" << endl;}
                 return 0;
             }
             catch(const std::exception& e)

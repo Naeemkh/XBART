@@ -843,7 +843,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suff_stat[class_operating], suff_stat[dim_residual + class_operating]);
 
         double mx, output;
-        int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, INFINITY, 1e-6); // status_mx = 1 if can't find root
+        int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 1000, 1e-6); // status_mx = 1 if can't find root
         if ( !status_mx) 
         { 
             lparams->set_mx(mx);
@@ -869,7 +869,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         else if( status)
         {
             // lparams->print();
-            cout << "integration failed. output = " << output << "; logv = " << lparams->logv << endl;
+            // cout << "integration failed. output = " << output << "; logv = " << lparams->logv << endl;
             
             size_t j = class_operating;
     
@@ -906,10 +906,8 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             count_reject += 1;
             if (count_reject > 50)
             {
-                cout << "warning: reject sampling after 50 iterations" << endl;
-                lparams->print();
-                // cout << "theta = " << theta << "; u = " << u <<  "; criteria = " << exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)) << endl;
-                // cout << "logf(theta) = " << log_logit_kernel(theta, lparams)  << "; logk = " <<  logk << "; dlnorm = " << log(pdf(dlnorm, theta))  << "; log(M) = " << log(M) << endl;
+                // cout << "warning: reject sampling after 50 iterations" << endl;
+                // lparams->print();
 
                 std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
                 theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
