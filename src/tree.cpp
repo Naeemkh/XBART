@@ -978,6 +978,7 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
                 x_struct->data_pointers_multinomial[model->get_class_operating()][tree_ind][Xorder_std[0][i]] = &this->theta_vector;
             }
         }
+        // cout << "leaf weight " << this->weight << endl;
 
         // if (update_theta)
         // {
@@ -1023,14 +1024,18 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
         tree::tree_p lchild = new tree(model->getNumClasses(), this, model->dim_suffstat);
         tree::tree_p rchild = new tree(model->getNumClasses(), this, model->dim_suffstat);
 
-        this->l = lchild;
-        this->r = rchild;
-
         lchild->depth = this->depth + 1;
         rchild->depth = this->depth + 1;
 
         lchild->ID = 2 * (this->ID);
         rchild->ID = lchild->ID + 1;
+
+        lchild->weight = model->weight;
+        rchild->weight = model->weight;
+
+        this->l = lchild;
+        this->r = rchild;
+
     }
     else
     {

@@ -966,7 +966,32 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     
 
     std::gamma_distribution<double> gammadist(1.0, 1.0);
+    std::vector<double> fits_w(dim_residual, 0.0);
 
+    // Draw phi
+    double temp;
+    for (size_t i = 0; i < state->residual_std[0].size(); i++){
+        for (size_t j = 0; j < dim_theta; ++j)
+        {
+            fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j], weight);
+        }
+        // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
+        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+        // cout <<"phi_" << i << ": " << temp <<endl;
+        (*phi)[i] = temp;
+        if (isinf(temp)) {
+            cout << "current weight " << weight << endl;
+            for (size_t j = 0; j < dim_theta; ++j)
+            {
+                fits_w[j] = state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j];
+            }
+            cout << "fits " << fits_w << endl;
+            terminate();
+        }
+    }
+
+    // if (tree_ind == state->num_trees - 1) // update weight after last tree
+    // {
     min_fits = INFINITY;
     double max_loglike_weight = -INFINITY;
     // double max_logf = -INFINITY;
@@ -974,7 +999,7 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     // std::vector<double> sum_fits_v (state->residual_std[0].size(), 0.0);
     std::vector<double> sum_fits_weight(weight_std.size(), 0.0);
     std::vector<double> loglike_weight(weight_std.size(), 0.0);
-    std::vector<double> fits_w(dim_residual, 0.0);
+    
     
     std::vector<double> log_lambda_prior(weight_std.size(), 0.0);
 
@@ -999,9 +1024,6 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
         }
     }
     #pragma omp taskwait
-
-    
-
     // Draw weight
 
     for (size_t i = 0; i < weight_std.size(); i++)
@@ -1019,30 +1041,7 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     std::discrete_distribution<> d(loglike_weight.begin(), loglike_weight.end());
     weight = weight_std[d(state->gen)];
     // cout << "weight " << weight << endl;
-
-
-    // Draw phi
-    double temp;
-    for (size_t i = 0; i < state->residual_std[0].size(); i++){
-        for (size_t j = 0; j < dim_theta; ++j)
-        {
-            fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j], weight);
-        }
-        // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
-        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
-        // cout <<"phi_" << i << ": " << temp <<endl;
-        (*phi)[i] = temp;
-        if (isinf(temp)) {
-            cout << "current weight " << weight << endl;
-            for (size_t j = 0; j < dim_theta; ++j)
-            {
-                fits_w[j] = state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j];
-            }
-            cout << "fits " << fits_w << endl;
-            terminate();
-        }
-    }
-
+    // }
 
     return;
 }
@@ -1210,7 +1209,12 @@ void LogitModelSeparateTrees::predict_std(const double *Xtestpointer, size_t N_t
 
                     // cout << "one obs " << log(bn->theta_vector[k]) << "  "  << bn->theta_vector[k]  << endl;
 
-                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += 5 * log(bn->theta_vector[k]); // need to powered by weight!!
+                    if (bn->weight < 1){
+                        cout << "class " << k << ", sweep " << sweeps << ", tree " << i << ", leaf weight = " << bn->weight << endl;
+                        bn->weight = 5; 
+                    }
+
+                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += bn->weight * log(bn->theta_vector[k]); // need to powered by weight!!
                 }
             }
         }
@@ -1298,7 +1302,7 @@ void LogitModelSeparateTrees::predict_std_standalone(const double *Xtestpointer,
 
                     // product of trees, thus sum of logs
 
-                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += log(bn->theta_vector[k]);// need to powered by weight!!
+                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += bn->weight * log(bn->theta_vector[k]);// need to powered by weight!!
                 }
             }
         }
