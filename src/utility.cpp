@@ -306,7 +306,7 @@ size_t count_non_zero(std::vector<double> &vec)
 
     }
 
-    int get_integration(double (*kernel)(double x, void *params), void *params, double &output)
+    int get_integration(double (*kernel)(double x, void *params), void *params, double &output, double const &lower_bound)
     {
         
         gsl_function F;
@@ -317,7 +317,7 @@ size_t count_non_zero(std::vector<double> &vec)
         gsl_set_error_handler_off();
         gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
         // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-        int status = gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &output, &error);
+        int status = gsl_integration_qagiu(&F, lower_bound, 0, 1e-6, 1000, workspace, &output, &error);
         gsl_integration_workspace_free(workspace);
 
         // if(take_log)

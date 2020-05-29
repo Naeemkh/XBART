@@ -310,12 +310,13 @@ void mcmc_loop_multinomial_sample_per_tree(matrix<size_t> &Xorder_std, bool verb
                 model->set_class_operating(class_ind);
 
                 model->initialize_root_suffstat(state, trees[class_ind][sweeps][tree_ind].suff_stat);
+                // cout << "class " << class_ind << ": suff_stat " << trees[class_ind][sweeps][tree_ind].suff_stat << endl;
 
                 trees[class_ind][sweeps][tree_ind].theta_vector.resize(model->dim_residual);
 
                 trees[class_ind][sweeps][tree_ind].grow_from_root_sample_per_tree(state, Xorder_std, x_struct->X_counts, x_struct->X_num_unique, model, x_struct, sweeps, tree_ind, true, false, true, entropy_threshold, num_stops);
             }
-                    }}}
+            }}}
 
             state->update_split_counts(tree_ind);
 

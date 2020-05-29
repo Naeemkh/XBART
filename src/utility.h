@@ -153,6 +153,6 @@ double derive_logit_kernel(double x, void *params);
 
 int get_root(double (*kernel)(double x, void *params), void *params, double &mx, double const &by, double const &limit, double const &tol);
 
-int get_integration(double (*kernel)(double x, void *params), void *params, double &output);
+int get_integration(double (*kernel)(double x, void *params), void *params, double &output, double const &lower_bound);
 
 #endif

@@ -909,13 +909,9 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
     
     if (update_theta)
     {
-        // cout << "update_theta" << endl;
         model->samplePars(state, this->suff_stat, this->theta_vector, this->prob_leaf, tree_ind);
-        // cout << "finish update_theta" << endl;
-        // cout << "calculate entropy" << endl;
+        // cout << "theta = " << this->theta_vector[model->class_operating] << endl;
         calculate_entropy(Xorder_std, state, this); 
-        // cout << "finish calculate entropy" << endl;
-        // cout << "entropy = " << this->entropy << "    threhold = " << entropy_threshold * N_Xorder << endl;
         if (this->entropy < entropy_threshold * N_Xorder) {
             #pragma omp critical 
             num_stops += 1;

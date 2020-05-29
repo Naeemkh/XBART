@@ -590,30 +590,24 @@ private:
     {    
         size_t c = suffstats.size() / 2;
         size_t j = class_operating;
-        LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suffstats[j], suffstats[c + j]);
-
-        if (weight == 1 | suffstats[c + j] > tau_b + 500)
+        
+        if (weight == 1 | suffstats[c + j] == 0)
+        {
+            return lgamma(weight * suffstats[j] + tau_a) - (weight * suffstats[j] + tau_a) * log(tau_b + suffstats[c + j]) ;
+        }
+        else if (suffstats[c + j] > tau_b + 500)
         {
             return  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
         }
         else
         {
+            LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, suffstats[j], suffstats[c + j]);
             lparams->set_w(weight);
             lparams->set_r(suffstats[j]);
             lparams->set_s(suffstats[c + j]);
-            // lparams->print();
 
-            // gsl_function F;
-            // F.function = &LogitKernel;
-            // F.params = lparams;
-                
-            // gsl_set_error_handler_off();
-            // gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
-            // // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-            // int status = gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &output, &error);
-            // gsl_integration_workspace_free(workspace);
             double mx, output;
-            int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 1000, 1e-6); // status_mx = 1 if can't find root
+            int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 10000, 1e-6); // status_mx = 1 if can't find root
             if ( !status_mx) 
             { 
                 lparams->set_mx(mx);
@@ -625,18 +619,18 @@ private:
                 cout << "can't find root " << endl;
             }
             
-            int status = get_integration(LogitKernel, lparams, output);
+            int status = get_integration(LogitKernel, lparams, output, 0.5*mx);
 
             if (output == 0)
             {
-                // lparams->print();
-                // cout << "warning: integration = 0"  << endl;
+                lparams->print();
+                cout << "warning: integration = 0"  << endl;
                 return  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
             }
             else if (status)
             {
-                // lparams->print();
-                // fprintf (stderr, "integration failed, gsl_errno=%d\n", status);
+                lparams->print();
+                fprintf (stderr, "integration failed, gsl_errno=%d\n", status);
                 return -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
         
             }
