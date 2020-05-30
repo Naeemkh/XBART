@@ -446,43 +446,56 @@ private:
     {
 
         size_t c = suffstats.size() / 2;
-
         LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, 0.0, 0.0);
-        std::vector<double> int_vec(c);
-        std::vector<double> error(c);
+        double mx;
+        int status_mx, status;
+        std::vector<double> output(c);
 
-        gsl_function F;
-        F.function = &LogitKernel;
-        // F.params = &lparams;
-        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
-       
         for (size_t j = 0; j < c; j++)
         {
-            if (weight == 1 | suffstats[c + j] > tau_b + 500)
+            if (weight == 1 | suffstats[c + j] == 0)
             {
-                int_vec[j] =  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+                output[j] = lgamma(weight * suffstats[j] + tau_a) - (weight * suffstats[j] + tau_a) * log(tau_b + suffstats[c + j]) ;
+            }
+            else if (suffstats[c + j] > tau_b + 500)
+            {
+                output[j] = -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
             }
             else
             {
                 lparams->set_r(suffstats[j]);
                 lparams->set_s(suffstats[c + j]);
-                F.params = lparams;
+                lparams->set_logv(1);
 
-                gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &int_vec[j], &error[j]); 
-                // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-
-                if (int_vec[j] == 0)
+                status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 10000, 1e-6); // status_mx = 1 if can't find root
+                if ( !status_mx) 
+                { 
+                    lparams->set_logv(log_logit_kernel(mx, lparams)); 
+                } 
+                else 
                 {
-                    cout << "warning: integration = 0, error =  " << error[j]  << endl;
                     lparams->print();
-                    int_vec[j] =  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+                    cout << "can't find root " << endl;
                 }
+            
+                status = get_integration(LogitKernel, lparams, output[j], 0.5 * mx);
+                if (output[j] == 0)
+                {
+                    lparams->print();
+                    cout << "warning: integration = 0,  using general Gamma"  << endl;
+                    output[j] =  -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+                }
+                else if (status)
+                {
+                    lparams->print();
+                    fprintf (stderr, "integration failed, gsl_errno=%d\n, using general Gamma", status);
+                    output[j] = -(tau_a + suffstats[j] + 1/weight) * log(tau_b + suffstats[c + j]) + lgamma(tau_a + suffstats[j] + 1/weight) - log(weight);
+            
+                }
+                else{ output[j] = log(output[j]) + lparams->logv;}
             }
-    
         }
-
-        gsl_integration_workspace_free(workspace);
-        return std::accumulate(int_vec.begin(), int_vec.end(), 1, std::multiplies<int>());
+        return std::accumulate(output.begin(), output.end(), 0.0);
 
     }
 
@@ -493,7 +506,7 @@ private:
 
     double loglike_x(std::unique_ptr<State> &state, std::unique_ptr<X_struct> &x_struct, const size_t &tree_ind, const size_t &ind, const double &w) const
     { 
-        double f_j;
+        // double f_j;
         double sum_fits = 0.0;
 
         for (size_t j = 0; j < dim_residual; j++)
@@ -534,8 +547,6 @@ public:
 
     double min_fits;
 
-    size_t count_old, count_new;
-
     LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, std::vector<double> weight_std) : Model(num_classes, 2*num_classes)
     {
       this->y_size_t = y_size_t;
@@ -550,8 +561,6 @@ public:
         this->weight_std = weight_std;
         this->min_fits = 1.0;
 
-        this->count_old = 0;
-        this->count_new = 0;
     }
 
     LogitModel() : Model(2, 4) {}
@@ -612,7 +621,7 @@ private:
             int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 10000, 1e-6); // status_mx = 1 if can't find root
             if ( !status_mx) 
             { 
-                lparams->set_mx(mx);
+                // lparams->set_mx(mx);
                 lparams->set_logv(log_logit_kernel(mx, lparams)); 
             } // set logv if find root
             else 
@@ -675,7 +684,7 @@ public:
 
     void update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct);
 
-    // void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
+    void initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat);
 
     void updateNodeSuffStat(std::vector<double> &suff_stat, matrix<double> &residual_std, matrix<size_t> &Xorder_std, size_t &split_var, size_t row_ind);
 

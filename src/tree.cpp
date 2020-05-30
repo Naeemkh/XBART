@@ -774,8 +774,6 @@ void tree::grow_from_root_entropy(std::unique_ptr<State> &state, matrix<size_t> 
 
     BART_likelihood_all(Xorder_std, no_split, split_var, split_point, subset_vars, X_counts, X_num_unique, model, x_struct, state, this, update_split_prob);
 
-    // cout << suff_stat << endl;
-
     this->loglike_node = model->likelihood(this->suff_stat, this->suff_stat, 1, false, true, state);
 
     if (no_split == true)
@@ -840,6 +838,9 @@ void tree::grow_from_root_entropy(std::unique_ptr<State> &state, matrix<size_t> 
 
         lchild->ID = 2 * (this->ID);
         rchild->ID = lchild->ID + 1;
+
+        lchild->weight = this->weight;
+        rchild->weight = this->weight;
 
         this->l = lchild;
         this->r = rchild;
@@ -1030,8 +1031,8 @@ void tree::grow_from_root_sample_per_tree(std::unique_ptr<State> &state, matrix<
         lchild->ID = 2 * (this->ID);
         rchild->ID = lchild->ID + 1;
 
-        lchild->weight = model->weight;
-        rchild->weight = model->weight;
+        lchild->weight = this->weight;
+        rchild->weight = this->weight;
 
         this->l = lchild;
         this->r = rchild;

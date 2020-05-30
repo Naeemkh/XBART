@@ -226,6 +226,7 @@ void mcmc_loop_multinomial(matrix<size_t> &Xorder_std, bool verbose,
                 {
                     #pragma omp section
                     {
+                        trees[sweeps][tree_ind].weight = model->weight;
                         trees[sweeps][tree_ind].grow_from_root_entropy(state, Xorder_std, x_struct->X_counts, x_struct->X_num_unique, model, x_struct, sweeps, tree_ind, true, false, true, entropy_threshold, num_stops);
                     }
                 }

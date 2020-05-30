@@ -603,8 +603,7 @@ Rcpp::List XBART_multinomial_cpp(Rcpp::IntegerVector y, int num_class, arma::mat
         Rcpp::List output_obj =  output(state, yhats_test_xinfo, output_vec, phi_samples, weight_samples, num_stops);
 
         Rcpp::XPtr<std::vector<std::vector<std::vector<tree>>>> tree_pnt(trees2, true);
-
-        cout << "new method: " << model->count_new << "; old_method: " << model->count_old << endl;
+        
         // clean memory
         delete model;
         state.reset();

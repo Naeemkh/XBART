@@ -260,209 +260,149 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 {
     size_t c = dim_theta;
     LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, 0.0, 0.0);
-    boost::math::tools::eps_tolerance<double> tol(1e-6);
-    gsl_function F;
-    F.function = &LogitKernel;
-    gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(3000);
-    double mx, mval, M, k, logk, error, theta, u;
-    bool accept;
+    double mx, output, logk, mval, M, theta , u;
     size_t count_reject;
+    size_t reject_limit = 100;
 
     for (size_t j = 0; j < dim_theta; j++)
     {
         if (weight == 1 | suff_stat[c + j] > tau_b + 500)
         {
-            count_old += 1;
-        
             std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
-            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
+        }
+        else if (suff_stat[c + j] == 0)
+        {
+            std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] * weight);
+            theta_vector[j] = gammadist(state->gen) / (tau_b);
         }
         else
         {
-            count_new += 1;
             lparams->set_r(suff_stat[j]);
             lparams->set_s(suff_stat[c + j]);
-            F.params = lparams;
-
-            std::pair<double, double> mx_bisect = boost::math::tools::bisect(boost::bind(&derive_logit_kernel, _1, lparams), 0.0, 10.0, tol);
-            mx = (mx_bisect.first + mx_bisect.second) / 2;
+            lparams->set_logv(1);
             
-            // gsl_integration_qagiu(function, lower_limit, absolut error limit, relatvie error limit, max # of sub interval, workspace, result, error)
-            gsl_integration_qagiu(&F, 0, 0, 1e-6, 2000, workspace, &k, &error);
-            
-            if (k == 0)
+            int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 10000, 1e-6); // status_mx = 1 if can't find root
+            if ( !status_mx) // set logv if find root
+            { 
+                // lparams->set_mx(mx);
+                lparams->set_logv(log_logit_kernel(mx, lparams));
+            } 
+            else
             {
-                cout << "warning: integration = 0, error =  " << error  << endl;
                 lparams->print();
-                logk = -(tau_a + suff_stat[j] + 1/weight) * log(tau_b + suff_stat[c + j]) + lgamma(tau_a + suff_stat[j] + 1/weight) - log(weight);
+                cout << "can't find root in samplePars, use general Gamma"  << endl;   
+                // need to reconsider, how to sample when we can't find root??
+                std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+                theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+                continue;
             }
-            else{ logk = log(k);}
+            
+            int status = get_integration(LogitKernel, lparams, output, 0.5*mx);
 
-            mval = LogitKernel(mx, lparams) / exp(logk);
-
-            boost::math::lognormal_distribution<double> dlnorm(log(mx), sqrt(0.05));
-            std::lognormal_distribution<double> rlnorm(log(mx), sqrt(0.05));
-            std::uniform_real_distribution<double> runif(0.0,1.0);
-
-            M = 1.05 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
-
-            accept = false;
-            count_reject = 0;
-            while(!accept)
+            if (output == 0)
             {
-                theta = rlnorm(state->gen);
-                u = runif(state->gen);
-                // cout << "theta = " << theta << "; u = " << u << ";" << endl;
-                
-                if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
-                {
-                    accept = true;
-                    break;
-                }
-                count_reject += 1;
-                if (count_reject > 50)
-                {
-                    cout << "warning: reject sampling after 50 iterations" << endl;
-                    lparams->print();
-                    cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(k) << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
-
-                    count_old += 1;
-                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
-                    theta =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
-                    accept = true;
-                }
+                lparams->print();
+                cout << "integration = 0 in samplePars, use general Gamma" << endl;
+                std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+                theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+                continue;
             }
-            theta_vector[j] = theta;
+            else if (status)
+            {
+                lparams->print();
+                cout << "integration failed in samplePars. output = " << output << ", use general Gamma" << endl;
+                std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+                theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ; 
+                continue;
+            }
+            else
+            {
+                logk = log(output) + lparams->logv;
+                mval = LogitKernel(mx, lparams) / output;
+
+                boost::math::lognormal_distribution<double> dlnorm(log(mx) - 0.05, sqrt(0.05));
+                std::lognormal_distribution<double> rlnorm(log(mx) - 0.05, sqrt(0.05));
+                std::uniform_real_distribution<double> runif(0.0,1.0);
+
+                M = 1.5 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
+
+                count_reject = 0;
+                while(count_reject < reject_limit)
+                {
+                    theta = rlnorm(state->gen);
+                    u = runif(state->gen);
+                    if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
+                    {
+                        theta_vector[j] = theta;
+                        break;
+                    }
+                    count_reject += 1;
+                }
+                if (count_reject >= reject_limit)
+                {
+                    lparams->print();
+                    cout << "warning: reject sampling after " <<  reject_limit << " iterations, use general Gamma" << endl;  
+                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
+                    theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
+                }
+                
+            }     
         }
     }
-    gsl_integration_workspace_free(workspace);
 
     return;
 }
 
 void LogitModel::update_state(std::unique_ptr<State> &state, size_t tree_ind, std::unique_ptr<X_struct> &x_struct)
 {
-    std::feclearexcept(FE_OVERFLOW);
-    std::feclearexcept(FE_UNDERFLOW);
-
-    // double sum_fits = 0;
-    // double loglike_pi = 0;
-    // size_t y_i;
-    // double sum_log_fits;
-    
-
-    std::gamma_distribution<double> gammadist(1.0, 1.0);
-
-    // min_fits = INFINITY;
     double max_loglike_weight = -INFINITY;
-    // double max_logf = -INFINITY;
-    // std::vector<double> log_f(dim_residual, 0.0);
-    // std::vector<double> sum_fits_v (state->residual_std[0].size(), 0.0);
-    // std::vector<double> sum_fits_weight(weight_std.size(), 0.0);
     std::vector<double> loglike_weight(weight_std.size(), 0.0);
     std::vector<double> fits_w(dim_residual, 0.0);
-    
-    std::vector<double> log_lambda_prior(weight_std.size(), 0.0);
 
-    // #pragma omp parallel for
-    // for (size_t i = 0; i < state->residual_std[0].size(); i++)
-    // {
-    //     // sum_fits = 0;
-    //     // sum_log_fits = 0;
-    //     // // max_logf = -INFINITY;
-    //     // // std::fill(sum_fits_w.begin(), sum_fits_w.end(), 0.0);
-    //     // for (size_t j = 0; j < dim_theta; ++j)
-    //     // {
-    //     //     // f_j[j]= state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j];
-    //     //     // sum_log_fits += log(f_j[j]);
-    //     //     log_f[j]= log(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j]);
-    //     //     // if (log_f[j] > max_logf) {max_logf = log_f[j];}
-            
-    //     // }
-
-    //     // loglike_weight
-    //     // y_i = (*state->y_std)[i];
-       
-
-    //     for (size_t j = 0; j < weight_std.size(); ++j)
-    //     {
-    //         loglike_weight[j] += loglike_x(state, x_struct, tree_ind, i, weight_std[j]);
-    //         // sum_log_fits = 0;
-    //         // for (size_t k = 0; k < dim_residual; k++)
-    //         // {
-    //         //     sum_log_fits += exp(weight_std[j] * (log_f[k]));
-    //         //     // cout << "f_" << k << "(x_" << i << ") = " << log_f[k] << " weight = " << weight_std[j] <<  " exp(weight_std[j] * (log_f[k]))" << exp(weight_std[j] * (log_f[k])) << endl;
-    //         // }
-
-    //         // loglike_weight[j] += weight_std[j] * (log_f[y_i]) - log(sum_log_fits);
-
-    //         for (size_t k = 0; k < state->num_trees; k++)
-    //         {
-    //             for (size_t l = 0; l < dim_residual; l++)
-    //             {
-    //                 log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
-    //             }
-    //         }
-
-    //     }
-    // }
     // rewrite loglike_weight calculation
     for (size_t j = 0; j < weight_std.size(); j++)
     {
-        #pragma omp task shared(loglike_weight, j, state, x_struct, tree_ind, weight_std, dim_residual, log_lambda_prior)
+        #pragma omp task shared(loglike_weight, j, state, x_struct, tree_ind, weight_std)
         {
             for (size_t i = 0; i < state->residual_std[0].size(); i++)
             {
                 loglike_weight[j] += loglike_x(state, x_struct, tree_ind, i, weight_std[j]);
-
-                // for (size_t k = 0; k < state->num_trees; k++)
-                // {
-                //     for (size_t l = 0; l < dim_residual; l++)
-                //     {
-                //         log_lambda_prior[j] += log_dlambda((*(x_struct->data_pointers[k][i]))[l], weight_std[j]);
-                //     }
-                // }
             }
-
         }
     }
     #pragma omp taskwait
 
-    
-
     // Draw weight
-
     for (size_t i = 0; i < weight_std.size(); i++)
     {
         // loglike_weight[i] = weight_std[i] * loglike_pi + lgamma(weight_std[i] * n + 1) - lgamma(n + 1) - lgamma((weight_std[i] - 1) * n + 1);
         // loglike_weight[i] = weight_std[i] * loglike_pi - loglike_weight[i];
-        if (loglike_weight[i] + log_lambda_prior[i] > max_loglike_weight){max_loglike_weight = loglike_weight[i] + log_lambda_prior[i];}
+        if (loglike_weight[i] > max_loglike_weight){max_loglike_weight = loglike_weight[i];}
     }
     for (size_t i = 0; i < weight_std.size(); i++)
     {
-        loglike_weight[i] = exp(loglike_weight[i]  + log_lambda_prior[i] - max_loglike_weight);
+        loglike_weight[i] = exp(loglike_weight[i] - max_loglike_weight);
     }
-    // cout << "loglike_weight " << loglike_weight <<endl;
-    
+
     std::discrete_distribution<> d(loglike_weight.begin(), loglike_weight.end());
     weight = weight_std[d(state->gen)];
     // cout << "weight " << weight << endl;
 
 
     // Draw phi
-    double temp;
-    for (size_t i = 0; i < state->residual_std[0].size(); i++){
+    std::gamma_distribution<double> gammadist(1.0, 1.0);
+
+    for (size_t i = 0; i < state->residual_std[0].size(); i++)
+    {
         for (size_t j = 0; j < dim_theta; ++j)
         {
             fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers[tree_ind][i]))[j], weight);
-            // if (fits_w[j] == 0) {cout << "resid = "<< state->residual_std[j][i] << "; data_pointer = "  << (*(x_struct->data_pointers[tree_ind][i]))[j] << "; weight = " << weight << endl;}
         }
-        // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
-        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
-        // cout <<"phi_" << i << ": " << temp <<endl;
-        (*phi)[i] = temp;
-        if (isinf(temp)) {
+
+        (*phi)[i] = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+        if (isinf((*phi)[i])) {
             cout << "current weight " << weight << endl;
             terminate();
         }
@@ -608,7 +548,11 @@ double LogitModel::likelihood(std::vector<double> &temp_suff_stat, std::vector<d
             //COUT << "local suff stat dim " << local_suff_stat.size() << endl;
             //COUT << "temp suff stat dim " << temp_suff_stat.size() << endl;
             local_suff_stat = suff_stat_all - temp_suff_stat;
-
+            for (size_t j = 0; j < local_suff_stat.size() ; j++)
+            {
+                // if (local_suff_stat[j] < 0){cout << "j = " << j << "; parrent suff = " << suff_stat_model[j] << "; left suff = " << temp_suff_stat[j] << endl;}
+                local_suff_stat[j] = local_suff_stat[j] > 0 ? local_suff_stat[j] : 0;
+            }
             // ntau = (suff_stat_all[2] - N_left - 1) * tau;
             // suff_one_side = y_sum - temp_suff_stat[0];
         }
@@ -834,20 +778,11 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
         theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
-
-        if (theta_vector[j] < 1e-3) 
-        {
-            cout << "warning: theta < 1e-3 using general Gamma, r = " << suff_stat[j] << "; s = " << suff_stat[c + j] << "; weight = " << weight << endl;
-        }
     }
     else if (suff_stat[c + j] == 0)
     {
         std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] * weight);
         theta_vector[j] = gammadist(state->gen) / (tau_b);
-        if (theta_vector[j] < 1e-3) 
-        {
-            cout << "warning: theta < 1e-3 using standard Gamma, r = " << suff_stat[j] << "; s = " << suff_stat[c + j] << "; weight = " << weight << endl;
-        }
     }
     else
     {
@@ -857,7 +792,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         int status_mx = get_root(derive_logit_kernel, lparams, mx,  5.0, 10000, 1e-6); // status_mx = 1 if can't find root
         if ( !status_mx) 
         { 
-            lparams->set_mx(mx);
+            // lparams->set_mx(mx);
             lparams->set_logv(log_logit_kernel(mx, lparams));
         } // set logv if find root
         else
@@ -1025,6 +960,34 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     return;
 }
 
+void LogitModelSeparateTrees::initialize_root_suffstat(std::unique_ptr<State> &state, std::vector<double> &suff_stat)
+{
+
+    /*
+    // sum of y
+    suff_stat[0] = sum_vec(state->residual_std[0]);
+    // sum of y squared
+    suff_stat[1] = sum_squared(state->residual_std[0]);
+    // number of observations in the node
+    suff_stat[2] = state->n_y;
+    */
+
+    // JINGYU check -- should i always plan to resize this vector?
+    // reply: use it for now. Not sure how to call constructor of tree when initialize vector<vector<tree>>, see definition of trees2 in XBART_multinomial, train_all.cpp
+
+    // remove resizing it does not work, strange
+
+    suff_stat.resize(2 * dim_theta);
+    std::fill(suff_stat.begin(), suff_stat.end(), 0.0);
+    for (size_t i = 0; i < state->n_y; i++)
+    {
+        // from 0
+        incSuffStat(state->residual_std, i, suff_stat);
+    }
+
+    return;
+}
+
 void LogitModelSeparateTrees::updateNodeSuffStat(std::vector<double> &suff_stat, matrix<double> &residual_std, matrix<size_t> &Xorder_std, size_t &split_var, size_t row_ind)
 {
     /*
@@ -1067,6 +1030,7 @@ void LogitModelSeparateTrees::calculateOtherSideSuffStat(std::vector<double> &pa
     }
     return;
 }
+
 
 void LogitModelSeparateTrees::state_sweep(size_t tree_ind, size_t M, matrix<double> &residual_std, std::unique_ptr<X_struct> &x_struct) const
 {
@@ -1135,9 +1099,9 @@ double LogitModelSeparateTrees::likelihood(std::vector<double> &temp_suff_stat, 
             local_suff_stat = suff_stat_all - temp_suff_stat;
             for (size_t j = 0; j < local_suff_stat.size() ; j++)
             {
+                // if (local_suff_stat[j] < 0){cout << "j = " << j << "; parrent suff = " << suff_stat_model[j] << "; left suff = " << temp_suff_stat[j] << endl;}
                 local_suff_stat[j] = local_suff_stat[j] > 0 ? local_suff_stat[j] : 0;
             }
-
             // ntau = (suff_stat_all[2] - N_left - 1) * tau;
             // suff_one_side = y_sum - temp_suff_stat[0];
         }
