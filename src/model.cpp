@@ -249,7 +249,7 @@ void LogitModel::incSuffStat(matrix<double> &residual_std, size_t index_next_obs
             // suffstats[j] += 1;
 
         // psi * f
-        suffstats[dim_theta + j] += (*phi)[index_next_obs] * residual_std[j][index_next_obs];
+        suffstats[dim_theta + j] += (*phi)[index_next_obs] *  pow(residual_std[j][index_next_obs], weight);
         // if (isnan(suffstats[dim_theta + j])) {cout << "phi = " << (*phi)[index_next_obs] << "; resid = " << residual_std[j][index_next_obs] << "; j = " << j << endl; }
     }
 
@@ -659,7 +659,7 @@ void LogitModel::predict_std(const double *Xtestpointer, size_t N_test, size_t p
 
                     // product of trees, thus sum of logs
 
-                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += log(bn->theta_vector[k]);
+                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += bn->weight * log(bn->theta_vector[k]);
                 }
             }
         }
@@ -746,7 +746,7 @@ void LogitModel::predict_std_standalone(const double *Xtestpointer, size_t N_tes
 
                     // product of trees, thus sum of logs
 
-                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += log(bn->theta_vector[k]);
+                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += bn->weight * log(bn->theta_vector[k]);
                 }
             }
         }
@@ -871,10 +871,6 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
 
             theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
 
-            if (theta_vector[j] < 1e-3) 
-            {
-                cout << "warning: theta < 1e-3 using general Gamma (no root), r = " << suff_stat[j] << "; s = " << suff_stat[c + j] << "; weight = " << weight << endl;
-            }
             return;
         }
             
@@ -887,10 +883,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
             theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
-            if (theta_vector[j] < 1e-3) 
-            {
-                cout << "warning: theta < 1e-3 using general Gamma (integration = 0), r = " << suff_stat[j] << "; s = " << suff_stat[c + j] << "; weight = " << weight << endl;
-            }
+
             return;
         }
         else if( status)
@@ -902,10 +895,6 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
 
             theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
             
-            if (theta_vector[j] < 1e-3) 
-            {
-                cout << "warning: theta < 1e-3 using general Gamma (integration error), r = " << suff_stat[j] << "; s = " << suff_stat[c + j] << "; weight = " << weight << endl;
-            }
             return;
         }
 
@@ -931,11 +920,6 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
             {
                 theta_vector[j] = theta;
-                if (theta_vector[j] < 1e-3) 
-                {
-                    lparams->print();
-                    cout << "warning: theta < 1e-3 using rejection sampling" << endl;
-                }
                 return;
             }
             count_reject += 1;
@@ -946,11 +930,6 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
                 
         std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
         theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
-        if (theta_vector[j] < 1e-3) 
-        {
-            lparams->print();
-            cout << "warning: theta < 1e-3 using general Gamma (rejection failed)" << endl;
-        }
     }
  
     return;

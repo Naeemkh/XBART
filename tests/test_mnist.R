@@ -1,7 +1,7 @@
 library(XBART)
 library(xgboost)
-# path = '~/Dropbox/MNIST/'
-path = '~/mnist/'
+path = '~/Dropbox/MNIST/'
+# path = '~/mnist/'
 
 D <- read.csv(paste(path,'mnist_train.csv', sep=''),header=FALSE)
 y = D[,1]
