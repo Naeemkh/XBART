@@ -260,7 +260,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
 {
     size_t c = dim_theta;
     LogitParams *lparams = new LogitParams(tau_a, tau_b, weight, 0.0, 0.0);
-    double mx, output, logk, mval, M, theta , u;
+    double mx, output, logk, mval, M, theta , u, sigma;
     size_t count_reject;
     size_t reject_limit = 100;
 
@@ -321,12 +321,13 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
             {
                 logk = log(output) + lparams->logv;
                 mval = LogitKernel(mx, lparams) / output;
+                sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
 
-                boost::math::lognormal_distribution<double> dlnorm(log(mx) - 0.05, sqrt(0.05));
-                std::lognormal_distribution<double> rlnorm(log(mx) - 0.05, sqrt(0.05));
+                boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
+                std::lognormal_distribution<double> rlnorm(log(mx), sigma);
                 std::uniform_real_distribution<double> runif(0.0,1.0);
 
-                M = 1.5 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
+                M = mval / pdf(dlnorm, exp(log(mx))); 
 
                 count_reject = 0;
                 while(count_reject < reject_limit)
@@ -344,8 +345,8 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
                 {
                     lparams->print();
                     cout << "warning: reject sampling after " <<  reject_limit << " iterations, use general Gamma" << endl;  
-                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
-                    theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
+                    std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+                    theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
                 }
                 
             }     
@@ -800,11 +801,10 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             lparams->print();
             cout << "can't find root in samplePars, use general Gamma"  << endl;   
             // need to reconsider, how to sample when we can't find root??
-            size_t j = class_operating;
     
             std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
-            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
 
             return;
         }
@@ -817,7 +817,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             cout << "integration = 0 in samplePars, use general Gamma" << endl;
             std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
-            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
 
             return;
         }
@@ -828,7 +828,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
     
             std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
 
-            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + j]), 1 / weight ) ;
+            theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
             
             return;
         }
@@ -837,11 +837,13 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
 
         double mval = LogitKernel(mx, lparams) / output;
 
-        boost::math::lognormal_distribution<double> dlnorm(log(mx) - 0.05, sqrt(0.05));
-        std::lognormal_distribution<double> rlnorm(log(mx) - 0.05, sqrt(0.05));
+        double sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
+
+        boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
+        std::lognormal_distribution<double> rlnorm(log(mx), sigma);
         std::uniform_real_distribution<double> runif(0.0,1.0);
 
-        double M = 1.5 * mval / pdf(dlnorm, exp(log(mx) - 0.05)); 
+        double M = mval / pdf(dlnorm, exp(log(mx))); 
 
         double theta, u;
         size_t count_reject = 0;
@@ -863,8 +865,8 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         lparams->print();
         cout << "warning: reject sampling after " <<  reject_limit << " iterations, use general Gamma" << endl;
                 
-        std::gamma_distribution<double> gammadist(tau_a + suff_stat[class_operating] +1/weight, 1.0);
-        theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[dim_theta + class_operating]), 1 / weight ) ;
+        std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
+        theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
     }
  
     return;
