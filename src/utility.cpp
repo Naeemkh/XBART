@@ -261,7 +261,7 @@ size_t count_non_zero(std::vector<double> &vec)
     {
         LogitParams p = * (LogitParams *) params;
 
-        return (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x;
+        return (p.w * p.r + p.tau_a) * log(x) - p.s * pow(x, p.w) - p.tau_b * x - p.logv;
     }
 
     double derive_logit_kernel(double x, void *params)

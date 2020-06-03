@@ -10,7 +10,7 @@ struct LogitParams{
 
 public:
     double tau_a, tau_b, w, r, s;
-    double logv = 1.0;
+    double logv = 0.0;
     // double mx = 0.0;
 
     LogitParams(): tau_a(1.0), tau_b(1.0), w(1), r(0.0), s(0.0) {}

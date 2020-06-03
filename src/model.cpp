@@ -322,7 +322,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
                 logk = log(output) + lparams->logv;
                 mval = LogitKernel(mx, lparams) / output;
                 // sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
-                sigma = 1 / weight / sqrt(suff_stat[c + j] + tau_b);
+                sigma = 1 / sqrt(weight * (suff_stat[c+j] + tau_b));
 
                 boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
                 std::lognormal_distribution<double> rlnorm(log(mx), sigma);
@@ -335,7 +335,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
                 {
                     theta = rlnorm(state->gen);
                     u = runif(state->gen);
-                    if (u < exp(log_logit_kernel(theta, lparams) - lparams->logv - logk - log(pdf(dlnorm, theta)) - log(M)))
+                    if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
                     {
                         theta_vector[j] = theta;
                         break;
@@ -839,13 +839,13 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         double mval = LogitKernel(mx, lparams) / output;
 
         // double sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
-        double sigma = 1 / weight / sqrt(suff_stat[c+j] + tau_b);
+        double sigma = 1 / sqrt(weight * (suff_stat[c+j] + tau_b));
 
         boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
         std::lognormal_distribution<double> rlnorm(log(mx), sigma);
         std::uniform_real_distribution<double> runif(0.0,1.0);
 
-        double M = mval / pdf(dlnorm, exp(log(mx))); 
+        double M = mval / pdf(dlnorm, mx); 
 
         double theta, u;
         size_t count_reject = 0;
@@ -854,9 +854,11 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         {
             theta = rlnorm(state->gen);
             u = runif(state->gen);
-            // cout << "theta = " << theta << "; u = " << u << ";" << endl;
-            // cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(k) << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
-            if (u < exp(log_logit_kernel(theta, lparams) - lparams->logv - logk - log(pdf(dlnorm, theta)) - log(M)))
+            // lparams->print();
+            // cout << "theta = " << theta << "; u = " << u << "; bar = " << exp(log_logit_kernel(theta, lparams) - lparams->logv - logk - log(pdf(dlnorm, theta)) - log(M)) << endl;
+            // cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(output) << "; log dflnorm = " << log(pdf(dlnorm, theta)) << "; logM = " << log(M) << endl;
+                
+            if (u < exp(log_logit_kernel(theta, lparams) - log(output) - log(pdf(dlnorm, theta)) - log(M)))
             {
                 theta_vector[j] = theta;
                 return;
@@ -866,7 +868,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
         
         lparams->print();
         cout << "warning: reject sampling after " <<  reject_limit << " iterations, use general Gamma" << endl;
-                
+        
         std::gamma_distribution<double> gammadist(tau_a + suff_stat[j] +1/weight, 1.0);
         theta_vector[j] =  pow(gammadist(state->gen) / (tau_b + suff_stat[c + j]), 1 / weight ) ;
     }
