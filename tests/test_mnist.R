@@ -46,16 +46,17 @@ p = v
 
 
 num_sweeps= 20 #30
-num_trees = 30
+num_trees = 20
 burnin = 5 #10
-Nmin = 1
-max_depth = 250
+Nmin = 5
+max_depth = 25
 mtry = 100
 num_cutpoints=20
 
 drop_threshold = 1
 
-ws = seq(1, 15, 0.5)
+ws = seq(10, 15, 0.5)
+# ws = c(1)
 
 # 
 ###################### test run to drop variables #################
@@ -66,7 +67,7 @@ fit_test = XBART.multinomial(y=matrix(y), num_class=10, X=X_train, Xtest=X_test,
                         no_split_penality = 1, weight = c(1), #seq(1, 10, 0.5), 
                         burnin = 1, mtry = mtry, p_categorical = p, 
                         kap = 1, s = 1, verbose = TRUE, parallel = TRUE, set_random_seed = TRUE, 
-                        random_seed = NULL, sample_weights_flag = TRUE, sample_per_tree = FALSE, stop_threshold = 0.1) 
+                        random_seed = NULL, sample_weights_flag = TRUE, sample_per_tree = TRUE, stop_threshold = 0.1) 
 t = proc.time() - t
 cat("test fit running time ", t[3], " seconds \n")
 
@@ -86,7 +87,7 @@ fit = XBART.multinomial(y=matrix(y), num_class=10, X=X_train, Xtest=X_test,
                         Nmin=Nmin, num_cutpoints=num_cutpoints, alpha=0.95, beta=1.25, tau_a = 2, tau_b = 2, 
                         no_split_penality = 1, weight = ws, burnin = burnin, mtry = mtry, p_categorical = p, 
                         kap = 1, s = 1, verbose = TRUE, parallel = TRUE, set_random_seed = TRUE, 
-                        random_seed = NULL, sample_weights_flag = TRUE, sample_per_tree = FALSE, stop_threshold = 0.1, nthread = 0) 
+                        random_seed = NULL, sample_weights_flag = TRUE, sample_per_tree = TRUE, stop_threshold = 0.1, nthread = 0) 
 t = proc.time() - t
 
 
@@ -110,4 +111,4 @@ cat(paste("xbart logloss : ",round(logloss,3)),"\n")
 #       " misclassified as ", tail(names(sort(table(yhat[ytest==i]))), 2)[1], "\n " )
 # }
 # 
-saveRDS(fit, paste(path, 'mnist_result/mnist_categorical_weight_per_tree.rds', sep = ''))
+saveRDS(fit, paste(path, 'mnist_result/mnist_int_from_0.rds', sep = ''))

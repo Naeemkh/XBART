@@ -321,7 +321,8 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
             {
                 logk = log(output) + lparams->logv;
                 mval = LogitKernel(mx, lparams) / output;
-                sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
+                // sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
+                sigma = 1 / weight / sqrt(suff_stat[c + j] + tau_b);
 
                 boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
                 std::lognormal_distribution<double> rlnorm(log(mx), sigma);
@@ -334,7 +335,7 @@ void LogitModel::samplePars(std::unique_ptr<State> &state, std::vector<double> &
                 {
                     theta = rlnorm(state->gen);
                     u = runif(state->gen);
-                    if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
+                    if (u < exp(log_logit_kernel(theta, lparams) - lparams->logv - logk - log(pdf(dlnorm, theta)) - log(M)))
                     {
                         theta_vector[j] = theta;
                         break;
@@ -837,7 +838,8 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
 
         double mval = LogitKernel(mx, lparams) / output;
 
-        double sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
+        // double sigma = 1 / sqrt(weight * suff_stat[c+j] + tau_b);
+        double sigma = 1 / weight / sqrt(suff_stat[c+j] + tau_b);
 
         boost::math::lognormal_distribution<double> dlnorm(log(mx), sigma);
         std::lognormal_distribution<double> rlnorm(log(mx), sigma);
@@ -854,7 +856,7 @@ void LogitModelSeparateTrees::samplePars(std::unique_ptr<State> &state, std::vec
             u = runif(state->gen);
             // cout << "theta = " << theta << "; u = " << u << ";" << endl;
             // cout << "logf = " << log_logit_kernel(theta, lparams) << "; log(k) = " << log(k) << "; log dlnorm = " << log(pdf(dlnorm, theta)) << "; log(M) = " << log(M) << endl;
-            if (u < exp(log_logit_kernel(theta, lparams) - logk - log(pdf(dlnorm, theta)) - log(M)))
+            if (u < exp(log_logit_kernel(theta, lparams) - lparams->logv - logk - log(pdf(dlnorm, theta)) - log(M)))
             {
                 theta_vector[j] = theta;
                 return;
