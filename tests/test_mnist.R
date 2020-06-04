@@ -55,7 +55,7 @@ num_cutpoints=20
 
 drop_threshold = 1
 
-ws = seq(10, 15, 0.5)
+ws = seq(1, 15, 0.5)
 # ws = c(1)
 
 # 

@@ -590,6 +590,7 @@ void LogitModel::predict_std(const double *Xtestpointer, size_t N_test, size_t p
 
     for (size_t sweeps = 0; sweeps < num_sweeps; sweeps++)
     {
+        weight = trees[sweeps][trees[0].size()-1].weight;
 
         for (size_t data_ind = 0; data_ind < N_test; data_ind++)
         {
@@ -605,7 +606,7 @@ void LogitModel::predict_std(const double *Xtestpointer, size_t N_test, size_t p
 
                     // product of trees, thus sum of logs
 
-                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += bn->weight * log(bn->theta_vector[k]);
+                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += weight * log(bn->theta_vector[k]);
                 }
             }
         }
@@ -677,6 +678,7 @@ void LogitModel::predict_std_standalone(const double *Xtestpointer, size_t N_tes
     for (size_t iter = 0; iter < num_iterations; iter++)
     {
         sweeps = iteration[iter];
+        weight = trees[sweeps][trees[0].size()-1].weight;
 
         for (size_t data_ind = 0; data_ind < N_test; data_ind++)
         {
@@ -692,7 +694,7 @@ void LogitModel::predict_std_standalone(const double *Xtestpointer, size_t N_tes
 
                     // product of trees, thus sum of logs
 
-                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += bn->weight * log(bn->theta_vector[k]);
+                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += weight * log(bn->theta_vector[k]);
                 }
             }
         }
@@ -1141,30 +1143,33 @@ void LogitModelSeparateTrees::predict_std(const double *Xtestpointer, size_t N_t
 
     tree::tree_p bn;
 
+    for (size_t sweeps = 0; sweeps < num_sweeps; sweeps++)
+    { 
+        weight = trees[0][sweeps][trees[0][0].size()-1].weight;
+        // cout << "sweep " << sweeps << ": weight = " << weight << endl;
+    }
+
     for (size_t data_ind = 0; data_ind < N_test; data_ind++)
     { // for each data observation
 
         for (size_t sweeps = 0; sweeps < num_sweeps; sweeps++)
         {
-
+            weight = trees[0][sweeps][trees[0][0].size()-1].weight;
             for (size_t k = 0; k < dim_residual; k++)
             { // loop over class
-
                 for (size_t i = 0; i < trees[0][0].size(); i++)
                 {
                     bn = trees[k][sweeps][i].search_bottom_std(Xtestpointer, data_ind, p, N_test);
 
-                    // product of trees, thus sum of logs
-
-                    // cout << "one obs " << log(bn->theta_vector[k]) << "  "  << bn->theta_vector[k]  << endl;
-
-                    if (bn->weight < 1){
-                        cout << "class " << k << ", sweep " << sweeps << ", tree " << i << ", leaf weight = " << bn->weight << endl;
-                        bn->weight = 5; 
-                    }
-
-                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += bn->weight * log(bn->theta_vector[k]); // need to powered by weight!!
+                    output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += weight * log(bn->theta_vector[k]); // need to powered by weight!!
                 }
+
+                // for (size_t i = 0; i < trees[0][0].size(); i++)
+                // {
+                //     bn = trees[k][sweeps][i].search_bottom_std(Xtestpointer, data_ind, p, N_test);
+
+                //     output_vec[sweeps + data_ind * num_sweeps + k * num_sweeps * N_test] += bn->weight * log(bn->theta_vector[k]); // need to powered by weight!!
+                // }
             }
         }
     }
@@ -1235,6 +1240,7 @@ void LogitModelSeparateTrees::predict_std_standalone(const double *Xtestpointer,
     for (size_t iter = 0; iter < num_iterations; iter++)
     {
         sweeps = iteration[iter];
+        weight = trees[0][sweeps][trees[0][0].size() - 1].weight;
 
         for (size_t data_ind = 0; data_ind < N_test; data_ind++)
         {
@@ -1251,7 +1257,7 @@ void LogitModelSeparateTrees::predict_std_standalone(const double *Xtestpointer,
 
                     // product of trees, thus sum of logs
 
-                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += bn->weight * log(bn->theta_vector[k]);// need to powered by weight!!
+                    output_vec[iter + data_ind * num_iterations + k * num_iterations * N_test] += weight * log(bn->theta_vector[k]);// need to powered by weight!!
                 }
             }
         }
