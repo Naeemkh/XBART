@@ -890,28 +890,6 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     std::gamma_distribution<double> gammadist(1.0, 1.0);
     std::vector<double> fits_w(dim_residual, 0.0);
 
-    // Draw phi
-    double temp;
-    for (size_t i = 0; i < state->residual_std[0].size(); i++){
-        for (size_t j = 0; j < dim_theta; ++j)
-        {
-            fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j], weight);
-        }
-        // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
-        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
-        // cout <<"phi_" << i << ": " << temp <<endl;
-        (*phi)[i] = temp;
-        if (isinf(temp)) {
-            cout << "current weight " << weight << endl;
-            for (size_t j = 0; j < dim_theta; ++j)
-            {
-                fits_w[j] = state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j];
-            }
-            cout << "fits " << fits_w << endl;
-            terminate();
-        }
-    }
-
     // if (tree_ind == state->num_trees - 1) // update weight after last tree
     // {
     min_fits = INFINITY;
@@ -964,6 +942,28 @@ void LogitModelSeparateTrees::update_state(std::unique_ptr<State> &state, size_t
     weight = weight_std[d(state->gen)];
     // cout << "weight " << weight << endl;
     // }
+
+    // Draw phi
+    double temp;
+    for (size_t i = 0; i < state->residual_std[0].size(); i++){
+        for (size_t j = 0; j < dim_theta; ++j)
+        {
+            fits_w[j] = pow(state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j], weight);
+        }
+        // (*phi)[i] = gammadist(state->gen) / (1.0*sum_fits_v[i]/min_fits); 
+        temp = gammadist(state->gen) / (1.0 * accumulate(fits_w.begin(), fits_w.end(), 0.0) );
+        // cout <<"phi_" << i << ": " << temp <<endl;
+        (*phi)[i] = temp;
+        if (isinf(temp)) {
+            cout << "current weight " << weight << endl;
+            for (size_t j = 0; j < dim_theta; ++j)
+            {
+                fits_w[j] = state->residual_std[j][i] * (*(x_struct->data_pointers_multinomial[j][tree_ind][i]))[j];
+            }
+            cout << "fits " << fits_w << endl;
+            terminate();
+        }
+    }
 
     return;
 }
