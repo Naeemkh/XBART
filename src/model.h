@@ -499,6 +499,7 @@ public:
     bool update_weight, update_tau; // option to update tau_a
     double weight, logloss; // pseudo replicates of observations
     double hmult, heps; // weight ~ Gamma(n, hmult * entropy + heps);
+    double prior_a, prior_b, prior_c;
 
     LogitModel(int num_classes, double tau_a, double tau_b, double alpha, double beta, std::vector<size_t> *y_size_t, std::vector<double> *phi, double weight, bool update_weight, bool update_tau, double hmult, double heps) : Model(num_classes, 2*num_classes)
     {
@@ -517,6 +518,11 @@ public:
         this->hmult = hmult;
         this->heps = heps;
         this->logloss = 0;
+        
+        // tau prior
+        this->prior_a = 1.0;
+        this->prior_b = 1.0;
+        this->prior_c = 1.0;
     }
 
     LogitModel() : Model(2, 4) {}

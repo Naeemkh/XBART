@@ -281,3 +281,14 @@ void dirichlet_distribution(std::vector<double> &prob, std::vector<double> &alph
     }
     return;
 }
+
+double tau_prior(double x, void * params){
+    tau_params p = * (tau_params *) params;
+    double output = (x-1)*log(p.a) + x * p.c * log(p.tau_b) - p.b * lgamma(x);
+    return exp(output);
+}
+
+
+double dgamma(double x, double alpha, double beta){
+    return exp(alpha * log(beta) - lgamma(alpha) + (alpha - 1) * log(x) - beta * x);
+}

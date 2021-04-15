@@ -1,6 +1,7 @@
 #include "tree.h"
 #include "model.h"
 #include <cfenv>
+#include "gsl/gsl_integration.h"
 
 //////////////////////////////////////////////////////////////////////////////////////
 //
@@ -333,52 +334,110 @@ void LogitModel::update_state(std::unique_ptr<State>& state, size_t tree_ind, st
     if (isnan(weight)) {cout << "weight is nan" << endl;}
 
     // Sample tau_a
-   if (update_tau)
-   {
-        size_t count_lambda = 0;
-        double mean_lambda = 0;
-        double var_lambda = 0;
-        double max_lambda = -INFINITY;
-        double temp_max;
-        for(size_t i = 0; i < state->num_trees; i++)
-        {
-            for(size_t j = 0; j < state->lambdas[i].size(); j++)
-            {
-                mean_lambda += std::accumulate(state->lambdas[i][j].begin(), state->lambdas[i][j].end(), 0.0);
-                count_lambda += dim_residual;
-                // temp_max = *max_element(state->lambdas[i][j].begin(), state->lambdas[i][j].end());
-                // max_lambda = temp_max > max_lambda ? temp_max : max_lambda;
-            }
-        }
-        // mean_lambda = mean_lambda / count_lambda / max_lambda;
-        mean_lambda = mean_lambda / count_lambda;
+//    if (update_tau)
+//    {
+//         size_t count_lambda = 0;
+//         double mean_lambda = 0;
+//         double var_lambda = 0;
+//         double max_lambda = -INFINITY;
+//         double temp_max;
+//         for(size_t i = 0; i < state->num_trees; i++)
+//         {
+//             for(size_t j = 0; j < state->lambdas[i].size(); j++)
+//             {
+//                 mean_lambda += std::accumulate(state->lambdas[i][j].begin(), state->lambdas[i][j].end(), 0.0);
+//                 count_lambda += dim_residual;
+//                 // temp_max = *max_element(state->lambdas[i][j].begin(), state->lambdas[i][j].end());
+//                 // max_lambda = temp_max > max_lambda ? temp_max : max_lambda;
+//             }
+//         }
+//         // mean_lambda = mean_lambda / count_lambda / max_lambda;
+//         mean_lambda = mean_lambda / count_lambda;
 
+//         for(size_t i = 0; i < state->num_trees; i++)
+//         {
+//             for(size_t j = 0; j < state->lambdas[i].size(); j++)
+//             {
+//                 for(size_t k = 0; k < dim_residual; k++)
+//                 {
+//                     // var_lambda += pow(state->lambdas[i][j][k] / max_lambda - mean_lambda, 2);
+//                     var_lambda += pow(state->lambdas[i][j][k] / mean_lambda - 1, 2);
+//                 }
+//             }
+//         }    
+//         var_lambda = var_lambda / count_lambda;
+//         // cout << "mean = " << mean_lambda << "; var = " << var_lambda << endl;
+
+//         // std::normal_distribution<> norm(mean_lambda, sqrt(var_lambda));
+//         std::normal_distribution<> norm(1, sqrt(var_lambda));
+//         tau_a = 0;
+//         while (tau_a <= 0)
+//         {
+//             tau_a = norm(state->gen) * tau_b;
+//         }
+
+//         // std::gamma_distribution<> d(10.0 *logloss / (double)state->n_y , 1.0);
+//         // tau_a = d(state->gen) ; // it's like shift p down by
+//         // cout << "weight = " << weight << ", tau_a = " << tau_a <<", logloss = " << logloss/(double) state->n_y << endl;
+
+//     }
+
+
+// update tau_a with prior
+    if (update_tau){
+        double prod_lambda = 0;
+        size_t count_lambda = 0;
         for(size_t i = 0; i < state->num_trees; i++)
         {
             for(size_t j = 0; j < state->lambdas[i].size(); j++)
             {
-                for(size_t k = 0; k < dim_residual; k++)
-                {
-                    // var_lambda += pow(state->lambdas[i][j][k] / max_lambda - mean_lambda, 2);
-                    var_lambda += pow(state->lambdas[i][j][k] / mean_lambda - 1, 2);
+                for (size_t k = 0; k < state->lambdas[i][j].size(); k++){
+                    prod_lambda += log(state->lambdas[i][j][k]);
+                    count_lambda += 1;
                 }
             }
-        }    
-        var_lambda = var_lambda / count_lambda;
-        // cout << "mean = " << mean_lambda << "; var = " << var_lambda << endl;
+        }
+        prod_lambda = exp(prod_lambda);
 
-        // std::normal_distribution<> norm(mean_lambda, sqrt(var_lambda));
-        std::normal_distribution<> norm(1, sqrt(var_lambda));
-        tau_a = 0;
-        while (tau_a <= 0)
-        {
-            tau_a = norm(state->gen) * tau_b;
+        double a = prior_a + prod_lambda;
+        double b = prior_b + count_lambda;
+        double c = prior_c + count_lambda;
+
+        double output = 0.0;
+        tau_params params(prior_a, prior_b, prior_c, tau_b);
+        double norm, error;
+        // std::vector<double> int_vec(params.n);
+        // std::vector<double> error(params.n);
+        // std::vector<double> integral_vec(this->n);
+
+        gsl_function F;
+        F.function = &tau_prior;
+        F.params = &params;
+        gsl_integration_workspace *w = gsl_integration_workspace_alloc(3000);
+        gsl_integration_qagiu(&F, 0, 0, 1e-6, 1000, w, &norm, &error);
+        gsl_integration_workspace_free(w);
+
+        // get funciton boundary
+        double M = -INFINITY;
+        double div;
+        for (size_t i = 0; i < 1000; i++){
+            div = tau_prior(0.01 * (i+1), &params) / norm / dgamma(0.01 * (i+1), 2.0, 1.0);
+            M = div > M ? div : M;
         }
 
-        // std::gamma_distribution<> d(10.0 *logloss / (double)state->n_y , 1.0);
-        // tau_a = d(state->gen) ; // it's like shift p down by
-        // cout << "weight = " << weight << ", tau_a = " << tau_a <<", logloss = " << logloss/(double) state->n_y << endl;
-
+        // rejection sampling from gamma(2, 1)
+        size_t count = 0;
+        while (count < 1000){
+            std::uniform_real_distribution<double> runif(0.0, 1.0);
+            std::gamma_distribution<double> rgamma(2.0, 1.0);
+            double u = runif(state->gen);
+            double x = rgamma(state->gen);
+            if (u <= tau_prior(x, &params) / norm / M / dgamma(x, 2.0, 1.0)){
+                tau_a = x;
+                break;
+            }
+            else {count += 1;}
+        }
     }
 
     return;

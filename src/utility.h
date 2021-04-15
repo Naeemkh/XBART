@@ -150,4 +150,32 @@ void multinomial_distribution(const size_t size, std::vector<double> &prob, std:
 
 void dirichlet_distribution(std::vector<double> &prob, std::vector<double> &alpha, std::mt19937 &gen);
 
+double tau_prior(double x, void * params);
+
+double dgamma(double x, double alpha, double beta);
+
+struct tau_params{
+public:
+    double a; 
+    double b; 
+    double c;
+    double tau_b;
+
+    tau_params(double b, double a, double c, double tau_b)
+    {
+        this->a = a;
+        this->b = b;
+        this->c = c;
+        this->tau_b = tau_b;
+        return;
+    }
+
+    void print()
+    {
+        std::cout << "tau prior params a = " << a << ", b = " << b << ", c = " << c << endl;
+        return; 
+    }
+};
+
+
 #endif
