@@ -414,7 +414,7 @@ void LogitModel::update_state(std::unique_ptr<State>& state, size_t tree_ind, st
         F.function = &tau_prior;
         F.params = &params;
         gsl_integration_workspace *w = gsl_integration_workspace_alloc(3000);
-        gsl_integration_qagiu(&F, 0, 0, 1e-6, 1000, w, &norm, &error);
+        gsl_integration_qagiu(&F, 0, 0, 1e-3, 1000, w, &norm, &error);
         gsl_integration_workspace_free(w);
 
         // get funciton boundary
